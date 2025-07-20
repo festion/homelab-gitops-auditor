@@ -1,0 +1,17 @@
+{
+  "api": {
+    "port": 3072
+  },
+  "logging": {
+    "level": "info",
+    "output": "/var/log/homelab-gitops-auditor/staging-deployment.log"
+  },
+  "monitoring": {
+    "healthCheckInterval": 45
+  },
+  "deployment": {
+    "homeAssistantConfig": {
+      "targetServer": "192.168.1.156"
+    }
+  }
+}

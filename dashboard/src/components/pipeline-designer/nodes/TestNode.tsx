@@ -200,8 +200,8 @@ export const TestNode: React.FC<NodeProps<TestNodeData>> = ({ data, selected }) 
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <span style={{ fontWeight: '600', fontSize: '11px' }}>Results</span>
-              <span style={{ fontSize: '11px', color: getSuccessRate() >= 90 ? '#10b981' : '#ef4444' }}>
-                {getSuccessRate()}% passed
+              <span style={{ fontSize: '11px', color: (getSuccessRate() ?? 0) >= 90 ? '#10b981' : '#ef4444' }}>
+                {getSuccessRate() ?? 0}% passed
               </span>
             </div>
             <div style={{ display: 'flex', gap: '8px', fontSize: '10px' }}>

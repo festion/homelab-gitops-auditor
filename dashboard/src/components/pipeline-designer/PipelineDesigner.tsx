@@ -245,7 +245,7 @@ export const PipelineDesigner: React.FC<PipelineDesignerProps> = ({
       console.error('Validation error:', error);
       const errorResult: ValidationResult = {
         isValid: false,
-        errors: [`Validation failed: ${error.message}`],
+        errors: [`Validation failed: ${error instanceof Error ? error.message : String(error)}`],
         warnings: [],
         info: []
       };
@@ -469,5 +469,5 @@ function getDefaultNodeData(nodeType: string): any {
     parallel: { label: 'Parallel', branches: ['branch1', 'branch2'] },
   };
 
-  return defaults[nodeType] || { label: 'Node' };
+  return (defaults as any)[nodeType] || { label: 'Node' };
 }

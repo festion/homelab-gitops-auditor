@@ -1,0 +1,412 @@
+name: Docker Compose Deployment
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  DOCKER_REGISTRY: "{{DOCKER_REGISTRY|ghcr.io}}"
+  COMPOSE_PROJECT_NAME: "{{COMPOSE_PROJECT_NAME|homelab}}"
+
+jobs:
+  validate:
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Validate docker-compose.yml
+      run: |
+        if [ -f "docker-compose.yml" ]; then
+          docker-compose -f docker-compose.yml config
+        fi
+        
+        if [ -f "docker-compose.prod.yml" ]; then
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml config
+        fi
+        
+        if [ -f "docker-compose.staging.yml" ]; then
+          docker-compose -f docker-compose.yml -f docker-compose.staging.yml config
+        fi
+    
+    - name: Check for security issues
+      run: |
+        echo "🔍 Checking Docker Compose security..."
+        
+        # Check for exposed ports
+        if grep -r "ports:" . --include="docker-compose*.yml" | grep -E ":80|:443|:22|:3306|:5432"; then
+          echo "⚠️  Found exposed standard ports. Ensure this is intentional."
+        fi
+        
+        # Check for privileged containers
+        if grep -r "privileged:" . --include="docker-compose*.yml" | grep -E "true|yes"; then
+          echo "⚠️  Found privileged containers. Review security implications."
+        fi
+        
+        # Check for host network mode
+        if grep -r "network_mode:" . --include="docker-compose*.yml" | grep "host"; then
+          echo "⚠️  Found host network mode. Review security implications."
+        fi
+        
+        # Check for bind mounts to sensitive directories
+        if grep -r "volumes:" . --include="docker-compose*.yml" -A 5 | grep -E "/etc|/var|/usr|/bin|/sbin"; then
+          echo "⚠️  Found bind mounts to system directories. Review security implications."
+        fi
+        
+        echo "✅ Security check completed"
+    
+    - name: Lint Dockerfiles
+      run: |
+        # Install hadolint if Dockerfiles exist
+        if find . -name "Dockerfile*" -type f | head -1 | read; then
+          wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+          chmod +x hadolint
+          
+          find . -name "Dockerfile*" -type f | while read dockerfile; do
+            echo "Linting $dockerfile..."
+            ./hadolint "$dockerfile" || echo "Hadolint found issues in $dockerfile"
+          done
+        else
+          echo "No Dockerfiles found to lint"
+        fi
+
+  build:
+    name: Build Images
+    runs-on: ubuntu-latest
+    needs: [validate]
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.DOCKER_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      run: |
+        echo "timestamp=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+        echo "sha_short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+        echo "ref_name=$(echo ${{ github.ref_name }} | tr '/' '-')" >> $GITHUB_OUTPUT
+    
+    - name: Build and push images
+      run: |
+        # Set common build args
+        export BUILDKIT_PROGRESS=plain
+        export DOCKER_BUILD_ARGS="--build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VCS_REF=${{ github.sha }}"
+        
+        # Build images defined in docker-compose
+        if [ -f "docker-compose.yml" ]; then
+          # Extract services that have build context
+          services=$(docker-compose -f docker-compose.yml config --services)
+          
+          for service in $services; do
+            build_context=$(docker-compose -f docker-compose.yml config | yq eval ".services.$service.build.context // empty" -)
+            
+            if [ -n "$build_context" ] && [ "$build_context" != "null" ]; then
+              echo "Building $service..."
+              
+              image_name="${{ env.DOCKER_REGISTRY }}/${{ github.repository_owner }}/${{ env.COMPOSE_PROJECT_NAME }}-$service"
+              
+              docker buildx build \
+                --platform linux/amd64,linux/arm64 \
+                --push \
+                --tag "$image_name:latest" \
+                --tag "$image_name:${{ steps.meta.outputs.ref_name }}" \
+                --tag "$image_name:${{ steps.meta.outputs.sha_short }}" \
+                --tag "$image_name:${{ steps.meta.outputs.timestamp }}" \
+                $DOCKER_BUILD_ARGS \
+                "$build_context"
+            fi
+          done
+        fi
+    
+    - name: Generate docker-compose override
+      run: |
+        # Create override file with built image tags
+        cat > docker-compose.override.yml << EOF
+        version: '3.8'
+        services:
+        EOF
+        
+        if [ -f "docker-compose.yml" ]; then
+          services=$(docker-compose -f docker-compose.yml config --services)
+          
+          for service in $services; do
+            build_context=$(docker-compose -f docker-compose.yml config | yq eval ".services.$service.build.context // empty" -)
+            
+            if [ -n "$build_context" ] && [ "$build_context" != "null" ]; then
+              image_name="${{ env.DOCKER_REGISTRY }}/${{ github.repository_owner }}/${{ env.COMPOSE_PROJECT_NAME }}-$service:${{ steps.meta.outputs.sha_short }}"
+              
+              cat >> docker-compose.override.yml << EOF
+          $service:
+            image: $image_name
+        EOF
+            fi
+          done
+        fi
+    
+    - name: Upload compose override
+      uses: actions/upload-artifact@v4
+      with:
+        name: docker-compose-override
+        path: docker-compose.override.yml
+
+  test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: [build]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download compose override
+      uses: actions/download-artifact@v4
+      with:
+        name: docker-compose-override
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.DOCKER_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Start services
+      run: |
+        # Use override file if it exists
+        compose_files="-f docker-compose.yml"
+        if [ -f "docker-compose.override.yml" ]; then
+          compose_files="$compose_files -f docker-compose.override.yml"
+        fi
+        
+        # Start services
+        docker-compose $compose_files up -d
+        
+        # Wait for services to be healthy
+        timeout 300s bash -c 'until docker-compose $compose_files ps | grep -E "(healthy|running)"; do sleep 5; done'
+    
+    - name: Run health checks
+      run: |
+        # Check if services are responding
+        services=$(docker-compose ps --services)
+        
+        for service in $services; do
+          container_id=$(docker-compose ps -q $service)
+          if [ -n "$container_id" ]; then
+            echo "Checking $service health..."
+            docker logs "$container_id" --tail 20
+            
+            # Check if service has health endpoint
+            if docker-compose exec -T $service curl -f http://localhost/health 2>/dev/null; then
+              echo "✅ $service health check passed"
+            else
+              echo "⚠️  $service health check not available or failed"
+            fi
+          fi
+        done
+    
+    - name: Run integration tests
+      run: |
+        # Run tests if test script exists
+        if [ -f "scripts/integration-test.sh" ]; then
+          bash scripts/integration-test.sh
+        elif [ -f "test/integration.sh" ]; then
+          bash test/integration.sh
+        else
+          echo "No integration tests found"
+        fi
+    
+    - name: Collect logs
+      if: always()
+      run: |
+        mkdir -p logs
+        docker-compose logs > logs/docker-compose.log
+        
+        services=$(docker-compose ps --services)
+        for service in $services; do
+          docker-compose logs $service > logs/$service.log
+        done
+    
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: integration-test-logs
+        path: logs/
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download compose override
+      uses: actions/download-artifact@v4
+      with:
+        name: docker-compose-override
+    
+    - name: Deploy to staging server
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.STAGING_HOST }}
+        username: ${{ secrets.STAGING_USERNAME }}
+        key: ${{ secrets.STAGING_SSH_KEY }}
+        script: |
+          set -e
+          
+          echo "🚀 Starting deployment to staging..."
+          
+          # Navigate to project directory
+          cd /opt/${{ env.COMPOSE_PROJECT_NAME }} || {
+            echo "Creating project directory..."
+            sudo mkdir -p /opt/${{ env.COMPOSE_PROJECT_NAME }}
+            sudo chown $USER:$USER /opt/${{ env.COMPOSE_PROJECT_NAME }}
+            cd /opt/${{ env.COMPOSE_PROJECT_NAME }}
+          }
+          
+          # Pull latest code
+          if [ -d ".git" ]; then
+            git pull origin main
+          else
+            git clone ${{ github.server_url }}/${{ github.repository }}.git .
+          fi
+          
+          # Login to registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.DOCKER_REGISTRY }} -u ${{ github.actor }} --password-stdin
+          
+          # Stop existing services
+          docker-compose down || true
+          
+          # Pull latest images
+          docker-compose pull
+          
+          # Start services
+          docker-compose up -d
+          
+          # Wait for services to be ready
+          sleep 30
+          
+          # Verify deployment
+          docker-compose ps
+          
+          echo "✅ Staging deployment completed"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.environment == 'production'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download compose override
+      uses: actions/download-artifact@v4
+      with:
+        name: docker-compose-override
+    
+    - name: Deploy to production server
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.PROD_HOST }}
+        username: ${{ secrets.PROD_USERNAME }}
+        key: ${{ secrets.PROD_SSH_KEY }}
+        script: |
+          set -e
+          
+          echo "🚀 Starting deployment to production..."
+          
+          # Create backup
+          cd /opt/${{ env.COMPOSE_PROJECT_NAME }}
+          docker-compose down
+          
+          # Backup current deployment
+          BACKUP_DIR="/opt/backups/${{ env.COMPOSE_PROJECT_NAME }}/$(date +%Y%m%d-%H%M%S)"
+          sudo mkdir -p "$BACKUP_DIR"
+          sudo cp -r . "$BACKUP_DIR/"
+          
+          # Pull latest code
+          git pull origin main
+          
+          # Login to registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.DOCKER_REGISTRY }} -u ${{ github.actor }} --password-stdin
+          
+          # Pull latest images
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml pull
+          
+          # Start services
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+          
+          # Wait for services to be ready
+          sleep 60
+          
+          # Verify deployment
+          docker-compose ps
+          
+          # Run health checks
+          if [ -f "scripts/health-check.sh" ]; then
+            bash scripts/health-check.sh
+          fi
+          
+          echo "✅ Production deployment completed"
+    
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        text: "Production deployment ${{ job.status }} for ${{ env.COMPOSE_PROJECT_NAME }}"
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

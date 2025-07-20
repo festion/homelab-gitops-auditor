@@ -1,0 +1,373 @@
+version: '3.8'
+
+services:
+  # Nginx Reverse Proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: homelab-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt
+      - ./nginx/www:/var/www/html
+    depends_on:
+      - api
+      - dashboard
+    networks:
+      - homelab-network
+    restart: unless-stopped
+    labels:
+      - "com.homelab.service=nginx"
+      - "com.homelab.environment=production"
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Let's Encrypt Certificate Management
+  certbot:
+    image: certbot/certbot
+    container_name: homelab-certbot
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt
+      - ./nginx/www:/var/www/html
+    depends_on:
+      - nginx
+    command: certonly --webroot --webroot-path=/var/www/html --email ${ADMIN_EMAIL:-admin@homelab.local} --agree-tos --no-eff-email --staging -d ${DOMAIN:-homelab.local} -d api.${DOMAIN:-homelab.local}
+    profiles:
+      - ssl-setup
+
+  # Application API
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.production
+    container_name: homelab-api
+    environment:
+      - NODE_ENV=production
+      - PORT=3071
+      - DATABASE_URL=${DATABASE_URL:-postgresql://homelab_user:${POSTGRES_PASSWORD}@database:5432/homelab_gitops}
+      - JWT_SECRET=${JWT_SECRET}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - LOG_LEVEL=info
+      - SENTRY_DSN=${SENTRY_DSN}
+      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - PROMETHEUS_METRICS=true
+      - GIT_ROOT_PATH=/app/repos
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+      - api-data:/app/data
+      - backup-storage:/app/backups
+      - git-repos:/app/repos
+      - audit-history:/app/audit-history
+    networks:
+      - homelab-network
+      - database-network
+    depends_on:
+      - database
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3071/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.homelab.service=api"
+      - "com.homelab.environment=production"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Dashboard Frontend
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile.production
+    container_name: homelab-dashboard
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://api.${DOMAIN:-homelab.local}
+      - NEXT_PUBLIC_WS_URL=wss://api.${DOMAIN:-homelab.local}
+      - NEXT_PUBLIC_SENTRY_DSN=${SENTRY_DSN}
+    networks:
+      - homelab-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.homelab.service=dashboard"
+      - "com.homelab.environment=production"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  # PostgreSQL Database
+  database:
+    image: postgres:17-alpine
+    container_name: homelab-database
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-homelab_gitops}
+      - POSTGRES_USER=${POSTGRES_USER:-homelab_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - ./database/backups:/backups
+    networks:
+      - database-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-homelab_user} -d ${POSTGRES_DB:-homelab_gitops}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.homelab.service=database"
+      - "com.homelab.environment=production"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: homelab-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - database-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.homelab.service=redis"
+      - "com.homelab.environment=production"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: homelab-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.wal-compression'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring-network
+      - homelab-network
+    restart: unless-stopped
+    labels:
+      - "com.homelab.service=prometheus"
+      - "com.homelab.environment=production"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: homelab-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SECURITY_COOKIE_SECURE=true
+      - GF_SECURITY_COOKIE_SAMESITE=strict
+      - GF_SERVER_DOMAIN=${DOMAIN:-homelab.local}
+      - GF_SERVER_ROOT_URL=https://${DOMAIN:-homelab.local}/grafana/
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - monitoring-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    labels:
+      - "com.homelab.service=grafana"
+      - "com.homelab.environment=production"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  # Log Aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: homelab-loki
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./monitoring/loki.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    labels:
+      - "com.homelab.service=loki"
+      - "com.homelab.environment=production"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  # Log Collection
+  promtail:
+    image: grafana/promtail:latest
+    container_name: homelab-promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./monitoring/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./logs:/app/logs:ro
+    networks:
+      - monitoring-network
+    depends_on:
+      - loki
+    restart: unless-stopped
+    labels:
+      - "com.homelab.service=promtail"
+      - "com.homelab.environment=production"
+
+  # Node Exporter for System Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: homelab-node-exporter
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    ports:
+      - "9100:9100"
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+    labels:
+      - "com.homelab.service=node-exporter"
+      - "com.homelab.environment=production"
+
+  # Backup Service
+  backup:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.backup
+    container_name: homelab-backup
+    environment:
+      - POSTGRES_HOST=database
+      - POSTGRES_DB=${POSTGRES_DB:-homelab_gitops}
+      - POSTGRES_USER=${POSTGRES_USER:-homelab_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+      - S3_BACKUP_ENABLED=${S3_BACKUP_ENABLED:-false}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+    volumes:
+      - backup-storage:/backups
+      - audit-history:/app/audit-history
+      - ./logs:/app/logs:ro
+    networks:
+      - database-network
+    depends_on:
+      - database
+    restart: unless-stopped
+    labels:
+      - "com.homelab.service=backup"
+      - "com.homelab.environment=production"
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  api-data:
+    driver: local
+  backup-storage:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  loki-data:
+    driver: local
+  certbot-etc:
+    driver: local
+  certbot-var:
+    driver: local
+  git-repos:
+    driver: local
+  audit-history:
+    driver: local
+
+networks:
+  homelab-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+  database-network:
+    driver: bridge
+    internal: true
+  monitoring-network:
+    driver: bridge

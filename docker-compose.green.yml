@@ -1,0 +1,113 @@
+# Blue-Green Deployment - Green Environment Configuration
+# This file is used during blue-green deployments for the green environment
+
+version: '3.8'
+
+services:
+  # Nginx Reverse Proxy (Green)
+  nginx-green:
+    image: nginx:alpine
+    container_name: homelab-green-nginx
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/nginx.green.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - api-green
+      - dashboard-green
+    networks:
+      - homelab-green-network
+    restart: unless-stopped
+    labels:
+      - "com.homelab.service=nginx"
+      - "com.homelab.environment=green"
+
+  # Application API (Green)
+  api-green:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.production
+    container_name: homelab-green-api
+    environment:
+      - NODE_ENV=production
+      - PORT=3072
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - LOG_LEVEL=info
+      - REDIS_URL=redis://redis-green:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+      - api-green-data:/app/data
+    networks:
+      - homelab-green-network
+      - database-network
+    depends_on:
+      - database
+      - redis-green
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3072/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.homelab.service=api"
+      - "com.homelab.environment=green"
+
+  # Dashboard Frontend (Green)
+  dashboard-green:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile.production
+    container_name: homelab-green-dashboard
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:3072
+    networks:
+      - homelab-green-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.homelab.service=dashboard"
+      - "com.homelab.environment=green"
+
+  # Redis Cache (Green)
+  redis-green:
+    image: redis:7-alpine
+    container_name: homelab-green-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --port 6380
+    volumes:
+      - redis-green-data:/data
+    networks:
+      - homelab-green-network
+    restart: unless-stopped
+    labels:
+      - "com.homelab.service=redis"
+      - "com.homelab.environment=green"
+
+volumes:
+  api-green-data:
+    driver: local
+  redis-green-data:
+    driver: local
+
+networks:
+  homelab-green-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+  database-network:
+    external: true

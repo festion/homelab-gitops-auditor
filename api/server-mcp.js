@@ -74,6 +74,16 @@ app.use((req, res, next) => {
 });
 
 // ===============================
+// Health Monitoring API Endpoints
+// ===============================
+
+// Health monitoring routes (temporarily commented out due to middleware dependencies)
+// const { router: healthRouter, initializeServices: initializeHealthServices } = require('./routes/health');
+
+// Mount health monitoring routes
+// app.use('/api/health', healthRouter);
+
+// ===============================
 // WikiJS Agent API Endpoints
 // ===============================
 
@@ -748,6 +758,23 @@ app.listen(PORT, '0.0.0.0', async () => {
   // Make GitHub MCP manager available to endpoints
   app.locals.githubMCP = githubMCP;
   app.locals.orchestrator = orchestrator;
+  
+  // Initialize health monitoring services (commented out temporarily)
+  /*
+  const healthServices = {
+    metrics: null, // Will be integrated with MetricsService when available
+    websocket: wsManager,
+    alerting: null // Will be integrated with AlertingService when available
+  };
+  
+  // Initialize health monitoring
+  try {
+    initializeHealthServices(healthServices);
+    console.log('🏥 Health monitoring services initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize health monitoring:', error.message);
+  }
+  */
   
   console.log('🔌 WebSocket server initialized with Phase 2 extensions');
   

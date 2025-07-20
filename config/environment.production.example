@@ -1,0 +1,52 @@
+# Production Environment Configuration
+# Copy this file to .env and customize the values
+
+# Domain Configuration
+DOMAIN=homelab.local
+ADMIN_EMAIL=admin@homelab.local
+
+# Database Configuration
+POSTGRES_DB=homelab_gitops
+POSTGRES_USER=homelab_user
+POSTGRES_PASSWORD=your_secure_postgres_password_here
+
+# Redis Configuration
+REDIS_PASSWORD=your_secure_redis_password_here
+
+# Application Security
+JWT_SECRET=your_jwt_secret_256_bit_key_here
+WEBHOOK_SECRET=your_webhook_secret_here
+
+# GitHub Integration
+GITHUB_TOKEN=your_github_token_here
+
+# Monitoring Configuration
+GRAFANA_PASSWORD=your_grafana_admin_password_here
+
+# Error Tracking (Optional)
+SENTRY_DSN=https://your-sentry-dsn-here
+
+# Backup Configuration
+BACKUP_SCHEDULE=0 2 * * *
+BACKUP_RETENTION_DAYS=30
+S3_BACKUP_ENABLED=false
+S3_BUCKET=your-backup-bucket
+S3_ACCESS_KEY=your-s3-access-key
+S3_SECRET_KEY=your-s3-secret-key
+
+# Application Version
+VERSION=latest
+
+# Resource Limits
+API_MEMORY_LIMIT=512M
+API_CPU_LIMIT=0.5
+DASHBOARD_MEMORY_LIMIT=256M
+DASHBOARD_CPU_LIMIT=0.25
+DB_MEMORY_LIMIT=1G
+DB_CPU_LIMIT=1.0
+
+# Security Settings
+ENABLE_FIREWALL=true
+ALLOWED_IPS=192.168.1.0/24,10.0.0.0/8
+SSH_PORT=22
+SSL_MODE=automatic

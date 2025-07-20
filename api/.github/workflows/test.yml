@@ -1,0 +1,283 @@
+name: API Tests
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**' ]
+    paths:
+      - 'api/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'api/**'
+      - '.github/workflows/test.yml'
+
+env:
+  NODE_ENV: test
+  JWT_SECRET: test-jwt-secret-key-for-ci
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: api/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./api
+      run: npm ci
+
+    - name: Run unit tests
+      working-directory: ./api
+      run: npm run test:unit
+      
+    - name: Upload unit test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: unit-test-results-node-${{ matrix.node-version }}
+        path: api/coverage/reports/
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: api/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./api
+      run: npm ci
+
+    - name: Run integration tests
+      working-directory: ./api
+      run: npm run test:integration
+      
+    - name: Upload integration test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: integration-test-results
+        path: api/coverage/reports/
+
+  websocket-tests:
+    name: WebSocket Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: api/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./api
+      run: npm ci
+
+    - name: Run WebSocket tests
+      working-directory: ./api
+      run: npm run test:websocket
+      
+    - name: Upload WebSocket test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: websocket-test-results
+        path: api/coverage/reports/
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: api/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./api
+      run: npm ci
+
+    - name: Run performance tests
+      working-directory: ./api
+      run: npm run test:performance
+      
+    - name: Upload performance test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: performance-test-results
+        path: api/coverage/reports/
+
+  coverage-report:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, websocket-tests]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: api/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./api
+      run: npm ci
+
+    - name: Run all tests with coverage
+      working-directory: ./api
+      run: npm run test:coverage
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        directory: ./api/coverage
+        flags: api
+        name: api-coverage
+        fail_ci_if_error: false
+
+    - name: Upload coverage to Coveralls
+      uses: coverallsapp/github-action@v2
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        path-to-lcov: ./api/coverage/lcov.info
+        base-path: ./api
+        flag-name: api
+
+    - name: Generate coverage badge
+      uses: tj-actions/coverage-badge-py@v2
+      with:
+        output: api/coverage-badge.svg
+        
+    - name: Upload coverage badge
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-badge
+        path: api/coverage-badge.svg
+
+    - name: Comment coverage on PR
+      if: github.event_name == 'pull_request'
+      uses: romeovs/lcov-reporter-action@v0.3.1
+      with:
+        lcov-file: ./api/coverage/lcov.info
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  quality-checks:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: api/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./api
+      run: npm ci
+
+    - name: Run ESLint
+      working-directory: ./api
+      run: npx eslint . --ext .js --format json --output-file eslint-report.json || true
+
+    - name: Run security audit
+      working-directory: ./api
+      run: npm audit --audit-level moderate --json > audit-report.json || true
+
+    - name: Check for vulnerabilities
+      working-directory: ./api
+      run: npx audit-ci --config audit-ci.json || true
+
+    - name: Upload quality reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: quality-reports
+        path: |
+          api/eslint-report.json
+          api/audit-report.json
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, websocket-tests, performance-tests, coverage-report]
+    if: always()
+    
+    steps:
+    - name: Download all test artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./test-results
+
+    - name: Generate test summary
+      run: |
+        echo "# Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Test Status" >> $GITHUB_STEP_SUMMARY
+        echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| WebSocket Tests | ${{ needs.websocket-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Performance Tests | ${{ needs.performance-tests.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Coverage Report | ${{ needs.coverage-report.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "./test-results/coverage-badge/coverage-badge.svg" ]; then
+          echo "## Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "![Coverage Badge](./test-results/coverage-badge/coverage-badge.svg)" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Set job status
+      run: |
+        if [[ "${{ needs.unit-tests.result }}" == "failure" || 
+              "${{ needs.integration-tests.result }}" == "failure" || 
+              "${{ needs.websocket-tests.result }}" == "failure" ]]; then
+          echo "Critical tests failed"
+          exit 1
+        fi

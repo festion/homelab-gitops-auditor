@@ -43,3 +43,38 @@ export interface ValidationResult {
   info: string[];
   issues?: ValidationIssue[];
 }
+
+// Pipeline Status Types
+export interface PipelineStep {
+  name: string;
+  status: 'pending' | 'running' | 'success' | 'failure' | 'skipped';
+  conclusion: string;
+  duration: number;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface Pipeline {
+  repository: string;
+  branch: string;
+  status: 'success' | 'failure' | 'pending' | 'running';
+  lastRun: string;
+  duration: number;
+  workflowName: string;
+  runId: number;
+  conclusion: string;
+  steps: PipelineStep[];
+  url?: string;
+  triggeredBy?: string;
+  commit?: {
+    sha: string;
+    message: string;
+    author: string;
+  };
+}
+
+export interface TriggerParams {
+  repository: string;
+  branch?: string;
+  workflowName?: string;
+}

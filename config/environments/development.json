@@ -1,0 +1,16 @@
+{
+  "api": {
+    "port": 3071
+  },
+  "logging": {
+    "level": "debug",
+    "enableDebug": true
+  },
+  "monitoring": {
+    "healthCheckInterval": 30
+  },
+  "featureFlags": {
+    "enableAdvancedLogging": true,
+    "enableExperimentalFeatures": true
+  }
+}

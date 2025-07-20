@@ -6,15 +6,19 @@ import {
   Home as HomeIcon,
   FileSearch as AuditIcon,
   ListTodo as RoadmapIcon,
+  Search as SearchIcon,
   FileText as TemplatesIcon,
   GitBranch as PipelinesIcon,
   Network as DependenciesIcon,
   Shield as QualityIcon,
+  CheckCircle as ComplianceIcon,
+  BarChart3 as AnalyticsIcon,
 } from 'lucide-react';
 
 const navItems = [
   { label: 'Dashboard', icon: <HomeIcon size={18} />, to: '/', section: 'core' },
   { label: 'Audit', icon: <AuditIcon size={18} />, to: '/audit', section: 'core' },
+  { label: 'Search', icon: <SearchIcon size={18} />, to: '/search', section: 'core' },
   { label: 'Roadmap', icon: <RoadmapIcon size={18} />, to: '/roadmap', section: 'core' },
 ];
 
@@ -23,6 +27,8 @@ const phase2Items = [
   { label: 'Pipelines', icon: <PipelinesIcon size={18} />, to: '/phase2/pipelines', section: 'devops' },
   { label: 'Dependencies', icon: <DependenciesIcon size={18} />, to: '/phase2/dependencies', section: 'devops' },
   { label: 'Quality Gates', icon: <QualityIcon size={18} />, to: '/phase2/quality', section: 'devops' },
+  { label: 'Compliance', icon: <ComplianceIcon size={18} />, to: '/compliance', section: 'devops' },
+  { label: 'Analytics', icon: <AnalyticsIcon size={18} />, to: '/analytics', section: 'devops' },
 ];
 
 const SidebarLayout = () => {

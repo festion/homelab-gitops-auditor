@@ -17,11 +17,15 @@ import TemplatesTestApi from './pages/phase2/templates-test-api';
 import SimpleTestPage from './pages/phase2/simple-test';
 import TemplatesFixed from './pages/phase2/templates-fixed';
 import TemplatesSimpleWorking from './pages/phase2/templates-simple-working';
-import PipelinesPage from './pages/phase2/pipelines';
+import PipelinesPagePhase2 from './pages/phase2/pipelines';
+import PipelinesPage from './pages/pipelines';
 import DependenciesPage from './pages/phase2/dependencies';
 import QualityPage from './pages/phase2/quality';
 import SimpleTest from './pages/SimpleTest';
 import TestPipelineDesigner from './pages/test/pipeline-designer';
+import { ComplianceDashboard } from './pages/ComplianceDashboard';
+import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
+import SearchPage from './pages/search';
 
 const router = createBrowserRouter([
   {
@@ -37,9 +41,12 @@ const router = createBrowserRouter([
       { path: 'audit', element: <AuditPage /> },
       { path: 'audit/:repo', element: <AuditPage /> },
       { path: 'roadmap', element: <Roadmap /> },
+      { path: 'search', element: <SearchPage /> },
       // Phase 2 routes - temporarily disabled due to syntax errors
-      { path: 'phase2/templates', element: <div className="p-6"><h1>Templates - Under Development</h1></div> },
-      { path: 'phase2/pipelines', element: <div className="p-6"><h1>Pipelines - Under Development</h1></div> },
+      { path: 'phase2/templates', element: <TemplatesPage /> },
+      { path: 'compliance', element: <ComplianceDashboard /> },
+      { path: 'analytics', element: <AnalyticsDashboard /> },
+      { path: 'phase2/pipelines', element: <PipelinesPagePhase2 /> },
       { path: 'phase2/dependencies', element: <div className="p-6"><h1>Dependencies - Under Development</h1></div> },
       { path: 'phase2/quality', element: <div className="p-6"><h1>Quality - Under Development</h1></div> },
       // Legacy redirects for old navigation links  

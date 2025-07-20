@@ -123,13 +123,7 @@ export const NodePalette: React.FC<NodePaletteProps> = ({ className = '' }) => {
                   border: '1px solid #e2e8f0',
                   borderRadius: '6px',
                   cursor: 'grab',
-                  transition: 'all 0.2s ease',
-                  ':hover': {
-                    backgroundColor: '#f8fafc',
-                    borderColor: nodeType.color,
-                    transform: 'translateY(-1px)',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-                  }
+                  transition: 'all 0.2s ease'
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = '#f8fafc';

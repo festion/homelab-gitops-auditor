@@ -1,0 +1,87 @@
+{
+  "version": "1.0.0",
+  "templates": {
+    "ci-basic": {
+      "name": "Basic CI Pipeline",
+      "description": "Essential CI pipeline with linting, testing, and building",
+      "category": "base",
+      "file": "base/ci-basic.yml",
+      "variables": {
+        "NODE_VERSION": {
+          "type": "string",
+          "default": "18",
+          "description": "Node.js version to use"
+        },
+        "PYTHON_VERSION": {
+          "type": "string", 
+          "default": "3.11",
+          "description": "Python version to use"
+        }
+      },
+      "dependencies": ["setup-env-action"],
+      "compatibleWith": ["node", "python", "typescript"]
+    },
+    "home-assistant-config": {
+      "name": "Home Assistant Config Validation",
+      "description": "Validates Home Assistant configuration files",
+      "category": "homelab",
+      "file": "homelab/home-assistant-config.yml",
+      "variables": {
+        "HA_VERSION": {
+          "type": "string",
+          "default": "2024.1",
+          "description": "Home Assistant version"
+        },
+        "PYTHON_VERSION": {
+          "type": "string",
+          "default": "3.11",
+          "description": "Python version to use"
+        }
+      },
+      "secrets": ["HA_HOST", "HA_USERNAME", "HA_SSH_KEY"],
+      "compatibleWith": ["homeassistant"]
+    },
+    "docker-compose-deploy": {
+      "name": "Docker Compose Deployment",
+      "description": "Builds and deploys Docker Compose applications",
+      "category": "homelab",
+      "file": "homelab/docker-compose-deploy.yml",
+      "variables": {
+        "DOCKER_REGISTRY": {
+          "type": "string",
+          "default": "ghcr.io",
+          "description": "Docker registry URL"
+        },
+        "COMPOSE_PROJECT_NAME": {
+          "type": "string",
+          "required": true,
+          "description": "Docker Compose project name"
+        }
+      },
+      "compatibleWith": ["docker"]
+    }
+  },
+  "categories": {
+    "base": "Foundation CI/CD pipelines",
+    "languages": "Language-specific workflows", 
+    "homelab": "Homelab-specific automation"
+  },
+  "project_types": {
+    "node": {
+      "detection": ["package.json"],
+      "suggested_templates": ["ci-basic"]
+    },
+    "python": {
+      "detection": ["requirements.txt", "pyproject.toml", "setup.py"],
+      "suggested_templates": ["ci-basic"]
+    },
+    "homeassistant": {
+      "detection": ["configuration.yaml"],
+      "suggested_templates": ["home-assistant-config"]
+    },
+    "docker": {
+      "detection": ["Dockerfile", "docker-compose.yml"],
+      "suggested_templates": ["docker-compose-deploy"]
+    }
+  }
+}
