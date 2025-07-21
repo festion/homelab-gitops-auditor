@@ -1,0 +1,86 @@
+{
+  "_comment": "WikiJS Sync Agent Configuration Example",
+  "_instructions": "Copy this file to ~/.wikijs-sync/config.json and update values",
+  
+  "wikiJsUrl": "https://your-wikijs.com",
+  "apiToken": "your-api-token-here",
+  "localPath": "/path/to/your/local/docs",
+  "dataDir": "~/.wikijs-sync",
+  "locale": "en",
+
+  "monitoring": {
+    "watchLocal": true,
+    "pollRemote": true,
+    "pollInterval": 60000,
+    "debounceDelay": 1000,
+    "metricsInterval": 10000
+  },
+
+  "conflicts": {
+    "autoResolve": ["local_newer", "remote_newer"],
+    "requireManual": ["both_changed", "structural_conflict"],
+    "backupOnResolve": true,
+    "notifyUser": true
+  },
+
+  "performance": {
+    "batchSize": 10,
+    "maxConcurrent": 3,
+    "compressionLevel": 6,
+    "deltaSyncThreshold": 1024,
+    "maxHistorySize": 1000
+  },
+
+  "notifications": {
+    "log": true,
+    "system": false,
+    "systemLevels": ["error", "warning"],
+    "email": false,
+    "webhook": false
+  },
+
+  "backup": {
+    "enabled": true,
+    "compressionThreshold": 1024,
+    "retentionDays": 30,
+    "autoCleanup": true
+  },
+
+  "security": {
+    "validateSSL": true,
+    "maxFileSize": 10485760,
+    "allowedExtensions": [".md", ".txt", ".rst"],
+    "encryptBackups": false
+  },
+
+  "syncMode": {
+    "mode": "bidirectional",
+    "interval": "realtime",
+    "periodicInterval": 300000
+  },
+
+  "filtering": {
+    "ignorePatterns": [
+      ".git/**",
+      ".svn/**",
+      "node_modules/**",
+      "*.tmp",
+      "*.swp",
+      "*.bak",
+      ".DS_Store",
+      "Thumbs.db",
+      "__pycache__/**",
+      "*.pyc"
+    ],
+    "includeHidden": false,
+    "maxDepth": 10
+  },
+
+  "logging": {
+    "level": "info",
+    "file": true,
+    "console": true,
+    "maxFileSize": 10485760,
+    "maxFiles": 5
+  }
+}

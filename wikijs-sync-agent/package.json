@@ -1,0 +1,47 @@
+{
+  "name": "wikijs-sync-agent",
+  "version": "1.0.0",
+  "description": "Bidirectional synchronization agent for WikiJS with intelligent conflict resolution",
+  "main": "src/cli.js",
+  "bin": {
+    "wikijs-sync": "src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js start",
+    "test": "node src/cli.js test",
+    "lint": "eslint src/**/*.js",
+    "dev": "nodemon src/cli.js start"
+  },
+  "keywords": [
+    "wikijs",
+    "sync",
+    "bidirectional",
+    "markdown",
+    "documentation",
+    "agent",
+    "conflict-resolution"
+  ],
+  "author": "WikiJS Sync Agent Team",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "chokidar": "^3.5.3",
+    "commander": "^11.1.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.52.0",
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/wikijs-sync-agent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/wikijs-sync-agent/issues"
+  },
+  "homepage": "https://github.com/your-org/wikijs-sync-agent#readme"
+}
