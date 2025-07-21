@@ -1,0 +1,144 @@
+{
+    "server_config": {
+        "name": "wikijs-mcp-server",
+        "version": "2.0.0",
+        "description": "Production-ready WikiJS MCP server with comprehensive error handling and monitoring",
+        "wrapper_script": "/home/dev/workspace/wikijs-mcp-wrapper.sh",
+        "health_monitor": "/home/dev/workspace/wikijs-health-monitor.sh",
+        "token_manager": "/home/dev/workspace/wikijs-token-manager.sh"
+    },
+    "connection": {
+        "url": "${WIKIJS_URL}",
+        "authentication": {
+            "type": "bearer_token",
+            "token": "${WIKIJS_TOKEN}",
+            "storage": "secure_token_manager"
+        },
+        "timeout": {
+            "connection": 10,
+            "request": 30,
+            "startup": 30
+        },
+        "retry": {
+            "max_attempts": 3,
+            "base_delay": 2,
+            "exponential_backoff": true
+        }
+    },
+    "capabilities": {
+        "document_discovery": {
+            "find_markdown_documents": true,
+            "analyze_document": true,
+            "validate_document_path": true,
+            "get_file_stats": true
+        },
+        "wiki_management": {
+            "upload_document_to_wiki": true,
+            "update_wiki_page": true,
+            "get_wiki_page_info": true,
+            "search_wiki_pages": true,
+            "migrate_directory_to_wiki": true
+        },
+        "system": {
+            "test_wikijs_connection": true,
+            "get_wikijs_connection_info": true
+        }
+    },
+    "security": {
+        "allowed_paths": [
+            "/home/dev/workspace",
+            "/home/dev/workspace/docs",
+            "/home/dev/workspace/projects",
+            "/home/dev/workspace/mcp-servers"
+        ],
+        "forbidden_patterns": [
+            "**/.git/**",
+            "**/node_modules/**",
+            "**/*.private.*",
+            "**/secrets/**",
+            "**/credentials/**"
+        ],
+        "max_file_size": "10MB",
+        "max_files_per_operation": 100,
+        "path_validation": true,
+        "content_filtering": true
+    },
+    "performance": {
+        "concurrent_operations": 5,
+        "batch_size": 20,
+        "cache_enabled": true,
+        "cache_ttl": 300
+    },
+    "monitoring": {
+        "health_checks": {
+            "enabled": true,
+            "interval": 300,
+            "timeout": 30,
+            "consecutive_failure_threshold": 3
+        },
+        "logging": {
+            "level": "INFO",
+            "file": "/home/dev/.mcp_logs/wikijs-mcp-wrapper.log",
+            "max_size": "100MB",
+            "retention_days": 30
+        },
+        "metrics": {
+            "enabled": true,
+            "export_interval": 60,
+            "health_status_file": "/home/dev/.wikijs_mcp/health_status"
+        }
+    },
+    "integration": {
+        "project_management": {
+            "enabled": true,
+            "base_path": "/home/dev/workspace/project-management",
+            "health_integration": true,
+            "status_file": "/home/dev/workspace/project-management/data/health/wikijs-mcp.json"
+        },
+        "serena": {
+            "enabled": true,
+            "auto_documentation": true,
+            "project_completion_hooks": true
+        }
+    },
+    "default_settings": {
+        "wiki": {
+            "default_locale": "en",
+            "default_editor": "markdown",
+            "auto_tags": ["mcp-generated", "documentation"],
+            "preserve_structure": true
+        },
+        "documents": {
+            "include_patterns": ["*.md", "*.markdown", "README.*"],
+            "exclude_patterns": [
+                "node_modules/**",
+                ".git/**",
+                "*.tmp",
+                "*.backup"
+            ],
+            "frontmatter_extraction": true,
+            "link_processing": true
+        }
+    },
+    "error_handling": {
+        "graceful_degradation": true,
+        "fallback_modes": ["offline", "read-only"],
+        "circuit_breaker": {
+            "enabled": true,
+            "failure_threshold": 5,
+            "timeout": 60,
+            "half_open_requests": 3
+        }
+    },
+    "production": {
+        "environment": "production",
+        "debug": false,
+        "strict_validation": true,
+        "audit_logging": true,
+        "rate_limiting": {
+            "enabled": true,
+            "requests_per_minute": 100,
+            "burst_size": 20
+        }
+    }
+}
