@@ -480,6 +480,246 @@ router.post('/batch-upload', [
 }));
 
 /**
+ * POST /api/wiki/upload-manager/queue
+ * Add files to the production upload queue using WikiJSUploadManager
+ */
+router.post('/upload-manager/queue', [
+  authenticateJWT,
+  uploadLimiter,
+  body('files').isArray({ min: 1, max: 50 })
+    .withMessage('Files must be an array of 1-50 file paths'),
+  body('files.*').isString().isLength({ min: 1, max: 500 })
+    .withMessage('Each file path must be a string of 1-500 characters'),
+  body('options').optional().isObject()
+    .withMessage('Options must be an object'),
+  body('options.overwrite').optional().isBoolean()
+    .withMessage('Overwrite option must be boolean'),
+  body('options.tags').optional().isArray()
+    .withMessage('Tags must be an array'),
+  body('options.priority').optional().isInt({ min: 0, max: 100 })
+    .withMessage('Priority must be between 0 and 100'),
+  handleValidationErrors
+], asyncHandler(async (req, res) => {
+  const { files, options = {} } = req.body;
+  
+  try {
+    const { WikiJSUploadManager } = require('../../upload-docs-to-wiki');
+    const uploadManager = new WikiJSUploadManager();
+    
+    await uploadManager.initialize();
+    
+    const jobs = [];
+    const errors = [];
+    
+    // Add all files to queue
+    for (const filePath of files) {
+      try {
+        const job = await uploadManager.addToQueue(filePath, {
+          ...options,
+          userId: req.auth?.username || 'api-user'
+        });
+        jobs.push({
+          id: job.id,
+          fileName: job.fileName,
+          priority: job.priority,
+          status: job.status
+        });
+      } catch (error) {
+        errors.push({
+          filePath,
+          error: error.message
+        });
+      }
+    }
+    
+    // Log the operation
+    AuditLogger.logWebhookEvent({
+      eventType: 'wiki-upload-queue',
+      delivery: `upload-queue-${Date.now()}`,
+      repository: 'wiki-upload-manager',
+      result: 'success',
+      processingTime: Date.now() - Date.now(),
+      trigger: 'api',
+      userAgent: req.get('User-Agent'),
+      metadata: {
+        user: req.auth?.username || 'unknown',
+        filesQueued: jobs.length,
+        errors: errors.length,
+        options
+      }
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        queued: jobs.length,
+        jobs,
+        errors,
+        queueStats: uploadManager.getStatistics()
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error queuing files for upload:', error);
+    res.status(500).json({
+      error: 'Failed to queue files',
+      details: error.message
+    });
+  }
+}));
+
+/**
+ * POST /api/wiki/upload-manager/process
+ * Process the upload queue using WikiJSUploadManager
+ */
+router.post('/upload-manager/process', [
+  authenticateJWT,
+  uploadLimiter,
+  handleValidationErrors
+], asyncHandler(async (req, res) => {
+  try {
+    const { WikiJSUploadManager } = require('../../upload-docs-to-wiki');
+    const uploadManager = new WikiJSUploadManager();
+    
+    await uploadManager.initialize();
+    
+    if (uploadManager.uploadQueue.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          message: 'Upload queue is empty',
+          processed: 0,
+          success: 0,
+          failed: 0
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Set up progress monitoring for the API response
+    const progressData = {
+      completed: [],
+      failed: [],
+      retried: []
+    };
+    
+    uploadManager.on('job_completed', (job) => {
+      progressData.completed.push({
+        fileName: job.fileName,
+        wikiPath: job.wikiPath,
+        uploadTime: job.updatedAt
+      });
+    });
+    
+    uploadManager.on('job_failed', (job) => {
+      progressData.failed.push({
+        fileName: job.fileName,
+        error: job.error,
+        retryCount: job.retryCount
+      });
+    });
+    
+    uploadManager.on('job_retry', (job) => {
+      progressData.retried.push({
+        fileName: job.fileName,
+        attempt: job.retryCount,
+        nextRetryIn: uploadManager.config.queue.retryDelay * Math.pow(2, job.retryCount - 1)
+      });
+    });
+    
+    // Process the queue
+    const results = await uploadManager.processQueue();
+    
+    // Log the operation
+    AuditLogger.logWebhookEvent({
+      eventType: 'wiki-upload-process',
+      delivery: `upload-process-${Date.now()}`,
+      repository: 'wiki-upload-manager',
+      result: results.failed === 0 ? 'success' : 'partial',
+      processingTime: Date.now() - Date.now(),
+      trigger: 'api',
+      userAgent: req.get('User-Agent'),
+      metadata: {
+        user: req.auth?.username || 'unknown',
+        processed: results.processed,
+        successful: results.success,
+        failed: results.failed,
+        retries: uploadManager.metrics.totalRetries
+      }
+    });
+    
+    const stats = uploadManager.getStatistics();
+    
+    res.json({
+      success: true,
+      data: {
+        ...results,
+        progress: progressData,
+        statistics: stats
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+    await uploadManager.shutdown();
+    
+  } catch (error) {
+    console.error('Error processing upload queue:', error);
+    res.status(500).json({
+      error: 'Failed to process upload queue',
+      details: error.message
+    });
+  }
+}));
+
+/**
+ * GET /api/wiki/upload-manager/status
+ * Get current upload manager status and queue information
+ */
+router.get('/upload-manager/status', [
+  defaultLimiter,
+  handleValidationErrors
+], asyncHandler(async (req, res) => {
+  try {
+    const { WikiJSUploadManager } = require('../../upload-docs-to-wiki');
+    const uploadManager = new WikiJSUploadManager();
+    
+    // Get current statistics without initializing if not needed
+    const stats = uploadManager.getStatistics();
+    
+    res.json({
+      success: true,
+      data: {
+        queueLength: uploadManager.uploadQueue?.length || 0,
+        activeUploads: uploadManager.activeUploads?.size || 0,
+        metrics: {
+          totalProcessed: stats.totalProcessed,
+          totalSuccess: stats.totalSuccess,
+          totalFailed: stats.totalFailed,
+          totalRetries: stats.totalRetries,
+          successRate: stats.successRate,
+          averageUploadTime: stats.averageUploadTime
+        },
+        configuration: {
+          maxConcurrent: uploadManager.config.queue.maxConcurrent,
+          retryAttempts: uploadManager.config.queue.retryAttempts,
+          rateLimit: uploadManager.config.wikijs.rateLimit,
+          batchSize: uploadManager.config.wikijs.batchSize
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error getting upload manager status:', error);
+    res.status(500).json({
+      error: 'Failed to get upload manager status',
+      details: error.message
+    });
+  }
+}));
+
+/**
  * GET /api/wiki/stats
  * Get processing statistics and performance metrics
  */
