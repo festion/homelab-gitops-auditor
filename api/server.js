@@ -25,6 +25,10 @@ const Database = require('./models/database');
 const SecurityMiddleware = require('./middleware/security');
 const authRoutes = require('./routes/auth');
 
+// WikiJS Agent System
+const WikiAgentManager = require('./wiki-agent-manager');
+const wikiRoutes = require('./routes/wiki');
+
 // Parse command line arguments for port
 const args = process.argv.slice(2);
 let portArg = args.find((arg) => arg.startsWith('--port='));
@@ -40,6 +44,9 @@ const app = express();
 const PORT = portFromArg || process.env.PORT || 3070;
 const HISTORY_DIR = path.join(rootDir, 'audit-history');
 const LOCAL_DIR = isDev ? '/mnt/c/GIT' : '/mnt/c/GIT';
+
+// WikiJS Agent Manager instance
+let wikiAgentManager;
 
 // Security middleware
 if (process.env.NODE_ENV === 'production') {
@@ -62,6 +69,18 @@ async function initializeAuth() {
   }
 }
 
+// Initialize WikiJS Agent Manager
+async function initializeWikiAgent() {
+  try {
+    wikiAgentManager = new WikiAgentManager(config, rootDir);
+    await wikiAgentManager.initialize();
+    console.log('WikiJS Agent Manager initialized');
+  } catch (error) {
+    console.error('Failed to initialize WikiJS Agent Manager:', error);
+    // Don't exit process - wiki functionality is optional
+  }
+}
+
 // Serve static dashboard files in development
 if (isDev) {
   app.use(express.static(path.join(rootDir, 'dashboard/public')));
@@ -74,6 +93,12 @@ app.use('/api/v2/auth', authRoutes);
 
 // Mount Phase 2 routes
 app.use('/api/v2', phase2Router);
+
+// Mount WikiJS Agent routes
+app.use('/api/wiki', (req, res, next) => {
+  req.wikiAgentManager = wikiAgentManager;
+  next();
+}, wikiRoutes);
 
 // Load latest audit report
 app.get('/audit', (req, res) => {
@@ -344,6 +369,9 @@ async function startServer() {
   try {
     // Initialize authentication system first
     await initializeAuth();
+    
+    // Initialize WikiJS Agent Manager
+    await initializeWikiAgent();
     
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🔧 GitOps Audit API running on port ${PORT}`);

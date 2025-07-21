@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { ConfigManager } = require('../config/utils/config-manager');
+const { ConfigManager } = require('../../config/utils/config-manager');
 
 /**
  * AuditLogger Class
@@ -485,7 +485,6 @@ class AuditLogger {
       return { error: `Failed to generate audit report: ${error.message}` };
     }
   }
-}
 
   /**
    * Log authentication events
