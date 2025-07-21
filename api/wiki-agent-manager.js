@@ -35,8 +35,8 @@ class WikiAgentManager {
       initialRetryDelay: this.isProduction ? 2000 : 1000,
       batchSize: this.isProduction ? 20 : 5,
       enableDetailedLogging: !this.isProduction,
-      wikijsUrl: process.env.WIKIJS_URL || this.config?.get('WIKIJS_URL') || 'http://test-wiki.example.com',
-      wikijsToken: process.env.WIKIJS_TOKEN || this.config?.get('WIKIJS_TOKEN') || null
+      wikijsUrl: process.env.WIKIJS_URL || (this.config?.get ? this.config.get('WIKIJS_URL') : this.config?.WIKIJS_URL) || 'http://test-wiki.example.com',
+      wikijsToken: process.env.WIKIJS_TOKEN || (this.config?.get ? this.config.get('WIKIJS_TOKEN') : this.config?.WIKIJS_TOKEN) || null
     };
 
     // Processing status constants
