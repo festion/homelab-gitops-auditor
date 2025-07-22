@@ -25,4 +25,7 @@ async function validateConfig() {
   }
 }
 
+// Export for module usage
+module.exports = { validateConfig };
+
 validateConfig();
