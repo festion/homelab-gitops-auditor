@@ -1,0 +1,117 @@
+{
+  "name": "wikijs-agent-monitoring",
+  "version": "1.0.0",
+  "description": "Comprehensive monitoring and alerting system for WikiJS Agent infrastructure",
+  "main": "index.js",
+  "bin": {
+    "wikijs-monitor": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "NODE_ENV=development node index.js",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "jest --testPathPattern=tests/unit",
+    "test:integration": "jest --testPathPattern=tests/integration",
+    "lint": "eslint src/ index.js",
+    "lint:fix": "eslint src/ index.js --fix",
+    "docs": "jsdoc -c jsdoc.json",
+    "install-service": "node index.js --create-service",
+    "config-check": "node index.js --config-check",
+    "health-check": "curl -f http://localhost:3002/health || exit 1"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.5",
+    "axios": "^1.6.2",
+    "nodemailer": "^6.9.7",
+    "sqlite3": "^5.1.6",
+    "node-cron": "^3.0.3",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1",
+    "prom-client": "^15.1.0",
+    "compression": "^1.7.4",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "uuid": "^9.0.1",
+    "moment": "^2.29.4",
+    "lodash": "^4.17.21",
+    "js-yaml": "^4.1.0",
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.6",
+    "commander": "^11.1.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "eslint": "^8.55.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^6.1.1",
+    "supertest": "^6.3.3",
+    "nodemon": "^3.0.2",
+    "jsdoc": "^4.0.2",
+    "@types/node": "^20.10.4"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/homelab/wikijs-agent-monitoring.git"
+  },
+  "keywords": [
+    "monitoring",
+    "alerting",
+    "wikijs",
+    "homelab",
+    "observability",
+    "metrics",
+    "health-checks",
+    "dashboard",
+    "notifications",
+    "logging"
+  ],
+  "author": "Homelab Team",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/homelab/wikijs-agent-monitoring/issues"
+  },
+  "homepage": "https://github.com/homelab/wikijs-agent-monitoring#readme",
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "index.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ]
+  },
+  "eslintConfig": {
+    "extends": [
+      "standard"
+    ],
+    "env": {
+      "node": true,
+      "es2022": true,
+      "jest": true
+    },
+    "rules": {
+      "no-console": "off",
+      "semi": [
+        "error",
+        "always"
+      ]
+    }
+  }
+}
