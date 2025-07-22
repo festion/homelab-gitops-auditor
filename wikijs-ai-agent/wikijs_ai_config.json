@@ -1,0 +1,146 @@
+{
+  "ai_processing": {
+    "serena_endpoint": "mcp://serena-enhanced",
+    "processing_pipeline": [
+      "content_analysis",
+      "grammar_enhancement",
+      "structure_optimization",
+      "link_detection",
+      "toc_generation",
+      "categorization",
+      "quality_scoring",
+      "template_compliance",
+      "final_validation"
+    ],
+    "enhancement_settings": {
+      "preserve_technical_details": true,
+      "target_audience": "developers",
+      "enhancement_type": "technical",
+      "confidence_threshold": 0.7,
+      "enable_content_enhancement": true,
+      "enable_grammar_correction": true,
+      "enable_style_improvement": true
+    },
+    "toc_settings": {
+      "min_headings": 3,
+      "max_depth": 4,
+      "include_numbering": true,
+      "auto_insert_toc": false,
+      "toc_placement": "after_introduction",
+      "generate_anchor_links": true
+    },
+    "categorization_settings": {
+      "max_tags": 10,
+      "confidence_threshold": 0.6,
+      "enable_auto_tagging": true,
+      "suggest_wiki_paths": true,
+      "categories": {
+        "technical": ["API", "Configuration", "Architecture", "Development"],
+        "operational": ["Deployment", "Monitoring", "Troubleshooting", "Maintenance"],
+        "user": ["Tutorial", "Guide", "FAQ", "Reference"],
+        "project": ["Planning", "Requirements", "Design", "Testing"]
+      }
+    },
+    "quality_settings": {
+      "min_quality_score": 0.7,
+      "enable_template_compliance": true,
+      "enable_readability_scoring": true,
+      "enable_grammar_checking": true,
+      "enable_technical_accuracy_check": true,
+      "enable_structure_analysis": true
+    },
+    "link_detection_settings": {
+      "enable_cross_document_linking": true,
+      "enable_broken_link_detection": true,
+      "enable_external_reference_detection": true,
+      "auto_create_links": false,
+      "link_confidence_threshold": 0.8,
+      "max_suggestions_per_document": 20
+    },
+    "readability_settings": {
+      "enable_readability_improvement": true,
+      "target_reading_level": "intermediate",
+      "preserve_technical_terminology": true,
+      "improve_sentence_structure": true,
+      "enhance_transitions": true
+    },
+    "batch_processing": {
+      "max_concurrent": 5,
+      "rate_limit_delay": 1.0,
+      "enable_caching": true,
+      "cache_expiry_hours": 24,
+      "enable_progress_tracking": true,
+      "enable_error_recovery": true
+    },
+    "template_compliance": {
+      "api_documentation": {
+        "required_sections": ["Overview", "Parameters", "Examples", "Response"],
+        "optional_sections": ["Authentication", "Rate Limits", "SDKs"],
+        "validation_rules": ["code_examples_present", "parameter_types_defined"]
+      },
+      "user_guide": {
+        "required_sections": ["Introduction", "Prerequisites", "Steps", "Troubleshooting"],
+        "optional_sections": ["Advanced Usage", "FAQ"],
+        "validation_rules": ["step_numbering", "screenshot_references"]
+      },
+      "technical_reference": {
+        "required_sections": ["Overview", "Specifications", "Implementation"],
+        "optional_sections": ["Examples", "Best Practices"],
+        "validation_rules": ["technical_accuracy", "complete_specifications"]
+      }
+    },
+    "navigation_generation": {
+      "enable_auto_navigation": true,
+      "structure_types": ["hierarchical", "topic_based", "audience_based"],
+      "default_structure_type": "hierarchical",
+      "enable_breadcrumbs": true,
+      "enable_sitemap_generation": true,
+      "enable_related_content_suggestions": true
+    }
+  },
+  "wikijs": {
+    "url": "${WIKIJS_URL}",
+    "token": "${WIKIJS_TOKEN}",
+    "default_locale": "en",
+    "default_editor": "markdown",
+    "default_tags": ["ai-processed", "auto-generated"],
+    "timeout": 30,
+    "retry_attempts": 3
+  },
+  "document_discovery": {
+    "search_paths": [
+      "/home/dev/workspace",
+      "./docs",
+      "./documentation"
+    ],
+    "include_patterns": ["*.md", "*.markdown", "*.txt"],
+    "exclude_patterns": [
+      "node_modules/**",
+      ".git/**",
+      "*.tmp",
+      "*.backup",
+      ".DS_Store"
+    ],
+    "max_file_size": 10485760,
+    "max_files_per_scan": 1000,
+    "enable_recursive_search": true
+  },
+  "security": {
+    "allowed_paths": [
+      "/home/dev/workspace",
+      "/tmp/wikijs-processing"
+    ],
+    "blocked_paths": [
+      "/etc",
+      "/var",
+      "/usr",
+      "/sys",
+      "/proc"
+    ],
+    "max_file_size": 10485760,
+    "allowed_extensions": [".md", ".txt", ".markdown"],
+    "enable_content_validation": true,
+    "enable_path_validation": true
+  },
+  "logging_level": "INFO"
+}

@@ -1,0 +1,76 @@
+{
+  "wikijs": {
+    "url": "https://wiki.internal.lakehouse.wtf",
+    "api_key": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGkiOjIsImdycCI6MSwiaWF0IjoxNzUwNjg5NzQ0LCJleHAiOjE3NTMyODE3NDQsImF1ZCI6InVybjp3aWtpLmpzIiwiaXNzIjoidXJuOndpa2kuanMifQ.rcGzUI_zmRmFhin90HM2BuB6n4CcCUYY2kHBL7aYg2C114U1GkAD_UHIEmo-6lH-qFESgh34MBTs_6-WUCxDQIg-Y2rPeKZqY8nnFrwrrFwXu6s3cyomHw4QclHWa1_OKs0BCausZWYWkgLagELx3WNw42Zs8YqH0yfjYqNQFy-Vh1jAphtoloFtKRZ0DIWSYE-oxwDywu3Qkh5XFIf0hZKOAu3XKD8da0G3WFpw4JB9v7ubHYNHJBdzp8RpLov-f6Xh5AYGuel1N4PCIbVRegpCKUVbHwZgYHrkTWwae-8D_9tphg1zAbGoQQ2bU-IPsFfcyFg8RDYViJiH2qaL0g",
+    "default_locale": "en",
+    "default_editor": "markdown",
+    "default_tags": ["documentation", "auto-generated", "mcp-server"],
+    "timeout": 30,
+    "retry_attempts": 3
+  },
+  "document_discovery": {
+    "search_paths": [
+      "/home/dev/workspace",
+      "/home/dev/workspace/mcp-servers",
+      "/home/dev/workspace/infrastructure",
+      "/home/dev/workspace/ai-development",
+      "/home/dev/workspace/manufacturing",
+      "/home/dev/workspace/scripts"
+    ],
+    "include_patterns": ["*.md", "*.markdown", "README.md", "CHANGELOG.md"],
+    "exclude_patterns": [
+      "node_modules/**",
+      ".git/**",
+      "**/.git/**",
+      "**/node_modules/**",
+      "*.private.md",
+      "**/.env",
+      "**/secrets/**",
+      "**/.vscode/**",
+      "**/dist/**",
+      "**/build/**"
+    ],
+    "max_file_size": "10MB",
+    "max_files_per_scan": 1000,
+    "follow_symlinks": false,
+    "extract_frontmatter": true,
+    "extract_links": true
+  },
+  "security": {
+    "allowed_paths": [
+      "/home/dev/workspace",
+      "/home/dev/workspace/mcp-servers",
+      "/home/dev/workspace/infrastructure",
+      "/home/dev/workspace/ai-development",
+      "/home/dev/workspace/manufacturing",
+      "/home/dev/workspace/scripts",
+      "/tmp/wikijs-uploads"
+    ],
+    "forbidden_patterns": [
+      ".*\\.private\\..*",
+      ".*\\.key$",
+      ".*\\.pem$",
+      "credentials\\..*",
+      ".*\\.env$"
+    ],
+    "max_files_per_operation": 100,
+    "require_path_validation": true,
+    "allow_hidden_files": false,
+    "content_filters": [
+      "(?i)(password|secret|api_key|token)\\s*[:=]\\s*[a-zA-Z0-9]{20,}",
+      "-----BEGIN (RSA )?PRIVATE KEY-----",
+      "(?i)(bearer|basic)\\s+[a-zA-Z0-9+/=]{50,}",
+      "(?i)mongodb://[^\\s@]+:[^\\s@]+@[^\\s]+",
+      "(?i)postgres://[^\\s@]+:[^\\s@]+@[^\\s]+"
+    ]
+  },
+  "page_config": {
+    "default_title_transform": "title_case",
+    "preserve_directory_structure": true,
+    "update_existing_pages": false,
+    "conflict_resolution": "skip",
+    "auto_generate_tags": true,
+    "include_metadata": true
+  },
+  "logging_level": "INFO"
+}
