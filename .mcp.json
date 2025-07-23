@@ -5,41 +5,24 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/mnt/c/Users/Jeremy/OneDrive/Desktop",
-        "/mnt/c/GIT",
-        "/mnt/c/my-tools",
-        "/mnt/c/working",
-        "/mnt/c/Users/Jeremy/AppData/Roaming/Claude/logs"
+        "/home/dev/workspace"
       ]
     },
     "network-fs": {
-      "command": "/mnt/c/my-tools/network-fs/.venv/bin/python3",
+      "command": "/home/dev/workspace/mcp-servers/network-fs/.venv/bin/python3",
       "args": [
-        "/mnt/c/my-tools/network-fs/run_server.py"
+        "/home/dev/workspace/mcp-servers/network-fs/run_server.py"
       ]
     },
-    "serena": {
+    "serena-enhanced": {
       "command": "uv",
       "args": [
         "run",
         "--directory",
-        "/mnt/c/GIT/serena",
+        "/home/dev/workspace/serena",
         "serena-mcp-server",
         "--transport",
         "stdio"
-      ]
-    },
-    "hass-mcp": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "HA_URL=http://192.168.1.155:8123",
-        "-e",
-        "HA_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI5YTAyYzMxZTNkYjM0YmQxYTQ2YzNlMmJhZDExMjI3NCIsImlhdCI6MTc0NzUwODk4OSwiZXhwIjoyMDYyODY4OTg5fQ.BwOQMlSgBOi7kb2IwgSIK4KCRDe2mI-sJL496NUwHkE",
-        "voska/hass-mcp"
       ]
     },
     "github": {
@@ -53,23 +36,62 @@
         "ghcr.io/github/github-mcp-server"
       ]
     },
-    "wikijs-mcp": {
-      "command": "/mnt/c/GIT/mcp-servers/wikijs-mcp-server/venv/bin/python",
+    "code-linter": {
+      "command": "/home/dev/workspace/mcp-servers/code-linter-mcp-server/venv/bin/python",
       "args": [
-        "/mnt/c/GIT/mcp-servers/wikijs-mcp-server/run_server.py",
-        "/mnt/c/GIT/mcp-servers/wikijs-mcp-server/config/wikijs_mcp_config.json"
+        "/home/dev/workspace/mcp-servers/code-linter-mcp-server/run_server.py"
       ],
       "env": {
-        "PYTHONPATH": "/mnt/c/GIT/mcp-servers/wikijs-mcp-server/src"
+        "PYTHONPATH": "/home/dev/workspace/mcp-servers/code-linter-mcp-server/src"
       }
     },
-    "proxmox-mcp": {
-      "command": "/mnt/c/GIT/mcp-servers/proxmox-mcp-server/venv/bin/python",
+    "directory-polling": {
+      "command": "python3",
       "args": [
-        "/mnt/c/GIT/mcp-servers/proxmox-mcp-server/src/proxmox_mcp/cli.py"
+        "/home/dev/workspace/homelab-gitops-auditor/mcp-enhanced-servers/directory-polling-system.py"
+      ]
+    },
+    "home-assistant": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "HA_URL=http://192.168.1.155:8123",
+        "-e",
+        "HA_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI5YTAyYzMxZTNkYjM0YmQxYTQ2YzNlMmJhZDExMjI3NCIsImlhdCI6MTc0NzUwODk4OSwiZXhwIjoyMDYyODY4OTg5fQ.BwOQMlSgBOi7kb2IwgSIK4KCRDe2mI-sJL496NUwHkE",
+        "voska/hass-mcp"
+      ]
+    },
+    "proxmox-mcp": {
+      "command": "/home/dev/workspace/mcp-servers/proxmox-mcp-server/venv/bin/python",
+      "args": [
+        "/home/dev/workspace/mcp-servers/proxmox-mcp-server/src/proxmox_mcp/cli.py"
       ],
       "env": {
-        "PROXMOX_CONFIG": "/mnt/c/GIT/mcp-servers/proxmox-mcp-server/config.json"
+        "PROXMOX_CONFIG": "/home/dev/workspace/mcp-servers/proxmox-mcp-server/config.json"
+      }
+    },
+    "truenas": {
+      "command": "/home/dev/workspace/mcp-servers/truenas-mcp-server/venv/bin/python",
+      "args": [
+        "/home/dev/workspace/mcp-servers/truenas-mcp-server/run_server.py"
+      ],
+      "env": {
+        "TRUENAS_API_URL": "http://192.168.1.100",
+        "TRUENAS_API_KEY": "${TRUENAS_API_KEY:-your_truenas_api_key_here}",
+        "PYTHONPATH": "/home/dev/workspace/mcp-servers/truenas-mcp-server/src"
+      }
+    },
+    "wikijs-mcp": {
+      "command": "/home/dev/workspace/mcp-servers/wikijs-mcp-server/venv/bin/python",
+      "args": [
+        "/home/dev/workspace/mcp-servers/wikijs-mcp-server/run_server.py",
+        "/home/dev/workspace/mcp-servers/wikijs-mcp-server/config/wikijs_mcp_config.json"
+      ],
+      "env": {
+        "PYTHONPATH": "/home/dev/workspace/mcp-servers/wikijs-mcp-server/src"
       }
     }
   }
