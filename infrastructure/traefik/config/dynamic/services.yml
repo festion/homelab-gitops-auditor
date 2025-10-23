@@ -18,7 +18,7 @@ http:
         healthCheck:
           path: /
           interval: 30s
-          timeout: 5s
+          timeout: 10s
     homeassistant-service:
       loadBalancer:
         servers:
