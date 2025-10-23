@@ -26,3 +26,11 @@ http:
       headers:
         customRequestHeaders:
           X-Forwarded-Host: ''
+    myspeed-headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        customResponseHeaders:
+          Cache-Control: "no-cache, no-store, must-revalidate"
+          Pragma: "no-cache"
+          Expires: "0"
