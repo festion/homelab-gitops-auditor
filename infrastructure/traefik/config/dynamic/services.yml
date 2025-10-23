@@ -1,0 +1,145 @@
+http:
+  serversTransports:
+    insecure-transport:
+      insecureSkipVerify: true
+  services:
+    adguard-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.253:80
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    birdnet-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.80:8080
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    homeassistant-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.155:8123
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    influx-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.56:8086
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    myspeed-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.152:5216
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    omada-service:
+      loadBalancer:
+        serversTransport: insecure-transport
+        servers:
+        - url: https://192.168.1.47:8043
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    pairdrop-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.97:3000
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    proxmox-service:
+      loadBalancer:
+        serversTransport: insecure-transport
+        servers:
+        - url: https://192.168.1.137:8006
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    proxmox2-service:
+      loadBalancer:
+        serversTransport: insecure-transport
+        servers:
+        - url: https://192.168.1.125:8006
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    pulse-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.122:7655
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    watchyourlan-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.195:8840
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    wiki-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.135:3000
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    esphome-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.169:6052
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    z2m-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.228:8099
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    zwave-js-ui-service:
+      loadBalancer:
+        serversTransport: insecure-transport
+        servers:
+        - url: https://192.168.1.141:8091
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    netbox-service:
+      loadBalancer:
+        servers:
+        - url: http://192.168.1.138
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s
+    caddy-service:
+      loadBalancer:
+        servers:
+        - url: http://localhost:2019
+        healthCheck:
+          path: /
+          interval: 30s
+          timeout: 5s

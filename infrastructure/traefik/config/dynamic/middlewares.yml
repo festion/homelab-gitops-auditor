@@ -1,0 +1,28 @@
+http:
+  middlewares:
+    secure-headers:
+      headers:
+        sslRedirect: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        frameDeny: true
+        referrerPolicy: strict-origin-when-cross-origin
+        permissionsPolicy: geolocation=(), microphone=(), camera=()
+        customFrameOptionsValue: SAMEORIGIN
+    internal-whitelist:
+      ipAllowList:
+        sourceRange:
+        - 192.168.1.0/24
+    esphome-headers:
+      headers:
+        customRequestHeaders:
+          X-Real-IP: ''
+          X-Forwarded-For: ''
+          X-Forwarded-Proto: ''
+    netbox-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Host: ''
