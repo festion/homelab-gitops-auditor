@@ -196,3 +196,15 @@ http:
         certResolver: cloudflare
         domains:
         - main: '*.internal.lakehouse.wtf'
+    traefik-router:
+      rule: Host(`traefik.internal.lakehouse.wtf`)
+      service: api@internal
+      entryPoints:
+      - websecure
+      middlewares:
+      - internal-whitelist
+      - secure-headers
+      tls:
+        certResolver: cloudflare
+        domains:
+        - main: '*.internal.lakehouse.wtf'
