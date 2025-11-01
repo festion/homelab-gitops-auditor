@@ -62,7 +62,7 @@ The one-line installer creates:
 
 1. **Configure Repository Settings:**
    ```bash
-   pct exec 123 -- /opt/gitops/scripts/config-manager.sh interactive
+   pct exec 123 -- /opt/gitops/scripts/config/config-manager.sh interactive
    ```
 
 2. **Run First Audit:**
@@ -119,13 +119,13 @@ curl http://CONTAINER_IP:3070/audit
 #### Configuration Issues
 ```bash
 # View current configuration
-pct exec 123 -- /opt/gitops/scripts/config-manager.sh show
+pct exec 123 -- /opt/gitops/scripts/config/config-manager.sh show
 
 # Validate configuration
-pct exec 123 -- /opt/gitops/scripts/config-manager.sh validate
+pct exec 123 -- /opt/gitops/scripts/config/config-manager.sh validate
 
 # Reconfigure interactively
-pct exec 123 -- /opt/gitops/scripts/config-manager.sh interactive
+pct exec 123 -- /opt/gitops/scripts/config/config-manager.sh interactive
 ```
 
 ### Manual Installation Alternative

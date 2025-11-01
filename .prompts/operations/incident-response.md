@@ -74,10 +74,10 @@ tail -f /var/log/nginx/error.log
 ### Application-Specific Diagnostics
 ```bash
 # Debug API issues
-./scripts/debug-api.sh
+./scripts/dev/debug-api.sh
 
 # Check configuration validity
-./scripts/config-loader.sh
+./scripts/config/config-loader.sh
 
 # Validate audit functionality
 ./scripts/comprehensive_audit.sh
@@ -120,7 +120,7 @@ rm -rf repos/*
 
 # Reset to last known good configuration
 git reset --hard HEAD~1
-./scripts/deploy-production.sh
+./scripts/deployment/deploy-production.sh
 ```
 
 ### Configuration Recovery
@@ -130,7 +130,7 @@ cd /opt/gitops-auditor
 cp -r /backup/latest/* .
 
 # Validate configuration
-./scripts/config-loader.sh
+./scripts/config/config-loader.sh
 
 # Restart with restored config
 sudo systemctl restart gitops-auditor

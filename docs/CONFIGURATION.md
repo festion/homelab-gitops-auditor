@@ -7,25 +7,25 @@ The GitOps Auditor supports user-configurable settings for production server add
 ### Method 1: Interactive Configuration (Recommended)
 ```bash
 # Run the interactive configuration wizard
-./scripts/config-manager.sh interactive
+./scripts/config/config-manager.sh interactive
 ```
 
 ### Method 2: Command Line Configuration
 ```bash
 # Set production server IP
-./scripts/config-manager.sh set PRODUCTION_SERVER_IP "192.168.1.100"
+./scripts/config/config-manager.sh set PRODUCTION_SERVER_IP "192.168.1.100"
 
 # Set local Git repository root
-./scripts/config-manager.sh set LOCAL_GIT_ROOT "/home/user/repositories"
+./scripts/config/config-manager.sh set LOCAL_GIT_ROOT "/home/user/repositories"
 
 # Set GitHub username
-./scripts/config-manager.sh set GITHUB_USER "your-username"
+./scripts/config/config-manager.sh set GITHUB_USER "your-username"
 ```
 
 ### Method 3: Manual Configuration File
 ```bash
 # Create user configuration file
-./scripts/config-manager.sh create-user-config
+./scripts/config/config-manager.sh create-user-config
 
 # Edit the configuration file
 nano config/settings.local.conf
@@ -71,31 +71,31 @@ ENABLE_AUTO_MITIGATION="false"           # Enable automatic issue fixes
 
 ### View Current Configuration
 ```bash
-./scripts/config-manager.sh show
+./scripts/config/config-manager.sh show
 ```
 
 ### Validate Configuration
 ```bash
-./scripts/config-manager.sh validate
+./scripts/config/config-manager.sh validate
 ```
 
 ### Test Production Server Connection
 ```bash
-./scripts/config-manager.sh test-connection
+./scripts/config/config-manager.sh test-connection
 ```
 
 ### Get/Set Individual Values
 ```bash
 # Get a configuration value
-./scripts/config-manager.sh get PRODUCTION_SERVER_IP
+./scripts/config/config-manager.sh get PRODUCTION_SERVER_IP
 
 # Set a configuration value
-./scripts/config-manager.sh set PRODUCTION_SERVER_IP "192.168.1.200"
+./scripts/config/config-manager.sh set PRODUCTION_SERVER_IP "192.168.1.200"
 ```
 
 ### Reset to Defaults
 ```bash
-./scripts/config-manager.sh reset
+./scripts/config/config-manager.sh reset
 ```
 
 ## Environment-Specific URLs
@@ -115,24 +115,24 @@ The system automatically generates URLs based on your configuration:
 ### Home Lab Setup
 ```bash
 # Configure for a typical home lab
-./scripts/config-manager.sh set PRODUCTION_SERVER_IP "192.168.1.100"
-./scripts/config-manager.sh set LOCAL_GIT_ROOT "/home/user/git"
-./scripts/config-manager.sh set GITHUB_USER "homelab-user"
+./scripts/config/config-manager.sh set PRODUCTION_SERVER_IP "192.168.1.100"
+./scripts/config/config-manager.sh set LOCAL_GIT_ROOT "/home/user/git"
+./scripts/config/config-manager.sh set GITHUB_USER "homelab-user"
 ```
 
 ### Windows WSL Setup
 ```bash
 # Configure for Windows WSL environment
-./scripts/config-manager.sh set LOCAL_GIT_ROOT "/mnt/c/Users/YourName/Git"
-./scripts/config-manager.sh set PRODUCTION_SERVER_IP "192.168.1.58"
+./scripts/config/config-manager.sh set LOCAL_GIT_ROOT "/mnt/c/Users/YourName/Git"
+./scripts/config/config-manager.sh set PRODUCTION_SERVER_IP "192.168.1.58"
 ```
 
 ### Corporate Environment
 ```bash
 # Configure for corporate network
-./scripts/config-manager.sh set PRODUCTION_SERVER_IP "10.0.1.50"
-./scripts/config-manager.sh set PRODUCTION_SERVER_USER "gitops"
-./scripts/config-manager.sh set DEVELOPMENT_API_PORT "8080"
+./scripts/config/config-manager.sh set PRODUCTION_SERVER_IP "10.0.1.50"
+./scripts/config/config-manager.sh set PRODUCTION_SERVER_USER "gitops"
+./scripts/config/config-manager.sh set DEVELOPMENT_API_PORT "8080"
 ```
 
 ## Deployment with Custom Configuration
@@ -141,7 +141,7 @@ The deployment scripts automatically use your configuration:
 
 ```bash
 # Deploy to your configured production server
-./scripts/deploy-production.sh
+./scripts/deployment/deploy-production.sh
 
 # Run audit with your settings
 ./scripts/comprehensive_audit.sh --dev
@@ -152,13 +152,13 @@ The deployment scripts automatically use your configuration:
 ### Configuration Issues
 ```bash
 # Check current configuration
-./scripts/config-manager.sh show
+./scripts/config/config-manager.sh show
 
 # Validate configuration
-./scripts/config-manager.sh validate
+./scripts/config/config-manager.sh validate
 
 # Test connection to production server
-./scripts/config-manager.sh test-connection
+./scripts/config/config-manager.sh test-connection
 ```
 
 ### Common Configuration Problems
@@ -166,25 +166,25 @@ The deployment scripts automatically use your configuration:
 1. **Local Git Root Not Found**
    ```bash
    # Fix: Set correct path to your Git repositories
-   ./scripts/config-manager.sh set LOCAL_GIT_ROOT "/correct/path/to/git"
+   ./scripts/config/config-manager.sh set LOCAL_GIT_ROOT "/correct/path/to/git"
    ```
 
 2. **Production Server Unreachable**
    ```bash
    # Test connection
-   ./scripts/config-manager.sh test-connection
+   ./scripts/config/config-manager.sh test-connection
    
    # Update IP if needed
-   ./scripts/config-manager.sh set PRODUCTION_SERVER_IP "correct.ip.address"
+   ./scripts/config/config-manager.sh set PRODUCTION_SERVER_IP "correct.ip.address"
    ```
 
 3. **Port Conflicts**
    ```bash
    # Change API port if 3070 is in use
-   ./scripts/config-manager.sh set DEVELOPMENT_API_PORT "3071"
+   ./scripts/config/config-manager.sh set DEVELOPMENT_API_PORT "3071"
    
    # Change dashboard port if 5173 is in use
-   ./scripts/config-manager.sh set DEVELOPMENT_DASHBOARD_PORT "5174"
+   ./scripts/config/config-manager.sh set DEVELOPMENT_DASHBOARD_PORT "5174"
    ```
 
 ## Security Considerations
@@ -200,7 +200,7 @@ If upgrading from a version with hardcoded settings:
 
 1. **Run the configuration wizard**:
    ```bash
-   ./scripts/config-manager.sh interactive
+   ./scripts/config/config-manager.sh interactive
    ```
 
 2. **Update your existing settings**:
@@ -210,11 +210,11 @@ If upgrading from a version with hardcoded settings:
 
 3. **Test the new configuration**:
    ```bash
-   ./scripts/config-manager.sh validate
-   ./scripts/config-manager.sh test-connection
+   ./scripts/config/config-manager.sh validate
+   ./scripts/config/config-manager.sh test-connection
    ```
 
 4. **Deploy with new settings**:
    ```bash
-   ./scripts/deploy-production.sh
+   ./scripts/deployment/deploy-production.sh
    ```

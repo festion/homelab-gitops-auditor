@@ -89,7 +89,7 @@ graph TD
 
 ### CLI Interface
 
-#### `scripts/apply-template.sh` (456 lines)
+#### `scripts/templates/apply-template.sh` (456 lines)
 **Command Structure:**
 ```bash
 apply-template.sh <command> [options]
@@ -185,14 +185,14 @@ python3 .mcp/batch-processor.py create --template test-template --repositories r
 ### Integration Testing
 ```bash
 # Complete system status check
-bash scripts/apply-template.sh status
+bash scripts/templates/apply-template.sh status
 
 # End-to-end dry run test
-bash scripts/apply-template.sh apply -t gitops-standard -r ./test-repo --dry-run
+bash scripts/templates/apply-template.sh apply -t gitops-standard -r ./test-repo --dry-run
 
 # Batch operation test
-bash scripts/apply-template.sh batch create -t test-template --repositories repo1 repo2 repo3
-bash scripts/apply-template.sh batch execute --batch-id <batch-id> --dry-run
+bash scripts/templates/apply-template.sh batch create -t test-template --repositories repo1 repo2 repo3
+bash scripts/templates/apply-template.sh batch execute --batch-id <batch-id> --dry-run
 ```
 
 ## 🔒 Security Considerations
@@ -295,37 +295,37 @@ except Exception as e:
 #### "Template not found" Error
 ```bash
 # Check template directory structure
-bash scripts/apply-template.sh list templates
+bash scripts/templates/apply-template.sh list templates
 
 # Validate template configuration
-bash scripts/apply-template.sh validate -t <template-name>
+bash scripts/templates/apply-template.sh validate -t <template-name>
 ```
 
 #### Conflict Resolution Issues
 ```bash
 # Analyze conflicts before applying
-bash scripts/apply-template.sh conflicts analyze --template <template> --existing <file>
+bash scripts/templates/apply-template.sh conflicts analyze --template <template> --existing <file>
 
 # Use interactive mode for complex conflicts
-bash scripts/apply-template.sh apply -t <template> -r <repo> --interactive
+bash scripts/templates/apply-template.sh apply -t <template> -r <repo> --interactive
 ```
 
 #### Backup/Restore Problems
 ```bash
 # Validate backup integrity
-bash scripts/apply-template.sh backup validate --backup-id <backup-id>
+bash scripts/templates/apply-template.sh backup validate --backup-id <backup-id>
 
 # Check backup permissions and disk space
-bash scripts/apply-template.sh backup list
+bash scripts/templates/apply-template.sh backup list
 ```
 
 #### Batch Processing Issues
 ```bash
 # Check batch status and logs
-bash scripts/apply-template.sh batch status --batch-id <batch-id>
+bash scripts/templates/apply-template.sh batch status --batch-id <batch-id>
 
 # Generate detailed batch report
-bash scripts/apply-template.sh batch report --batch-id <batch-id>
+bash scripts/templates/apply-template.sh batch report --batch-id <batch-id>
 ```
 
 ### Performance Optimization

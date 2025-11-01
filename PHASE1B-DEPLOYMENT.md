@@ -172,8 +172,8 @@ gitops-template restart        # Restart template engine
 ### Direct Script Access
 ```bash
 # Single repository operations
-bash scripts/apply-template.sh --dry-run standard-devops /path/to/repo
-bash scripts/apply-template.sh --apply standard-devops /path/to/repo
+bash scripts/templates/apply-template.sh --dry-run standard-devops /path/to/repo
+bash scripts/templates/apply-template.sh --apply standard-devops /path/to/repo
 
 # Batch operations
 bash scripts/batch-apply-templates.sh --dry-run standard-devops

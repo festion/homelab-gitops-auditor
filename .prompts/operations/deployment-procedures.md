@@ -32,13 +32,13 @@ Before executing any deployment, ensure the following steps are completed:
 ```bash
 # Verify current system status
 ./scripts/comprehensive_audit.sh
-./scripts/debug-api.sh
+./scripts/dev/debug-api.sh
 
 # Check current version
 cat package.json | grep version
 
 # Verify configuration
-./scripts/config-loader.sh
+./scripts/config/config-loader.sh
 ```
 
 ### Step 2: Create Deployment Backup
@@ -57,7 +57,7 @@ mv backup_*.tar.gz /backup/deployments/
 ### Step 3: Deploy New Version
 ```bash
 # For production deployment
-./scripts/deploy-production.sh
+./scripts/deployment/deploy-production.sh
 
 # For development/staging
 ./scripts/deploy.sh
@@ -108,7 +108,7 @@ sudo systemctl start gitops-auditor
 sudo systemctl start gitops-dashboard
 
 # Verify rollback success
-./scripts/debug-api.sh
+./scripts/dev/debug-api.sh
 ```
 
 ### Git-based Rollback
@@ -120,7 +120,7 @@ git log --oneline -10
 git reset --hard <commit-hash>
 
 # Redeploy
-./scripts/deploy-production.sh
+./scripts/deployment/deploy-production.sh
 ```
 
 ## 3-Tier Environment Architecture
@@ -138,7 +138,7 @@ The GitOps auditor now supports a comprehensive 3-tier deployment architecture:
 **Provisioning:**
 ```bash
 # Enhanced development environment with Home Assistant tools
-./scripts/provision-lxc-dev-enhanced.sh
+./scripts/deployment/provision-lxc-dev-enhanced.sh
 ```
 
 **Access:**
@@ -165,7 +165,7 @@ The GitOps auditor now supports a comprehensive 3-tier deployment architecture:
 **Provisioning:**
 ```bash
 # QA environment with comprehensive testing suite
-./scripts/provision-lxc-qa.sh
+./scripts/deployment/provision-lxc-qa.sh
 ```
 
 **Access:**

@@ -19,7 +19,7 @@ The **Phase 1B Template Application Engine** has been successfully implemented, 
 | **Conflict Resolution System** | `.mcp/conflict-resolver.py` | 694 | ✅ Complete | Intelligent conflict detection and auto-resolution |
 | **Backup Management System** | `.mcp/backup-manager.py` | 899 | ✅ Complete | Comprehensive backup/restore with validation |
 | **Batch Processing System** | `.mcp/batch-processor.py` | 773 | ✅ Complete | Parallel processing with progress tracking |
-| **Unified CLI Interface** | `scripts/apply-template.sh` | 456 | ✅ Complete | User-friendly command-line wrapper |
+| **Unified CLI Interface** | `scripts/templates/apply-template.sh` | 456 | ✅ Complete | User-friendly command-line wrapper |
 
 **Total Implementation**: **3,630+ lines** of production-ready Python and Bash code
 
@@ -125,66 +125,66 @@ Phase 1B Template Application Engine
 ### Single Repository Operations
 ```bash
 # Preview template application (dry run)
-bash scripts/apply-template.sh apply -t gitops-standard -r ./my-repo --dry-run
+bash scripts/templates/apply-template.sh apply -t gitops-standard -r ./my-repo --dry-run
 
 # Apply template with automatic backup
-bash scripts/apply-template.sh apply -t gitops-standard -r ./my-repo
+bash scripts/templates/apply-template.sh apply -t gitops-standard -r ./my-repo
 
 # Apply with custom variables
-bash scripts/apply-template.sh apply -t mcp-integration -r ./my-repo -v custom-vars.json
+bash scripts/templates/apply-template.sh apply -t mcp-integration -r ./my-repo -v custom-vars.json
 
 # Interactive conflict resolution
-bash scripts/apply-template.sh apply -t gitops-standard -r ./my-repo --interactive
+bash scripts/templates/apply-template.sh apply -t gitops-standard -r ./my-repo --interactive
 ```
 
 ### Batch Processing Operations
 ```bash
 # Create batch operation for multiple repositories
-bash scripts/apply-template.sh batch create -t gitops-standard \
+bash scripts/templates/apply-template.sh batch create -t gitops-standard \
   --repositories repo1 repo2 repo3 repo4 repo5
 
 # Execute batch with 8 parallel workers
-bash scripts/apply-template.sh batch execute \
+bash scripts/templates/apply-template.sh batch execute \
   --batch-id batch_gitops_20250624_160000 --workers 8
 
 # Monitor batch progress in real-time
-bash scripts/apply-template.sh batch status \
+bash scripts/templates/apply-template.sh batch status \
   --batch-id batch_gitops_20250624_160000
 
 # Generate comprehensive batch report
-bash scripts/apply-template.sh batch report \
+bash scripts/templates/apply-template.sh batch report \
   --batch-id batch_gitops_20250624_160000
 ```
 
 ### Backup Management
 ```bash
 # Create snapshot backup before major changes
-bash scripts/apply-template.sh backup create -r ./my-repo --type snapshot
+bash scripts/templates/apply-template.sh backup create -r ./my-repo --type snapshot
 
 # List all available backups
-bash scripts/apply-template.sh backup list
+bash scripts/templates/apply-template.sh backup list
 
 # Validate backup integrity
-bash scripts/apply-template.sh backup validate --backup-id my-repo_20250624_160000
+bash scripts/templates/apply-template.sh backup validate --backup-id my-repo_20250624_160000
 
 # Restore from backup
-bash scripts/apply-template.sh backup restore \
+bash scripts/templates/apply-template.sh backup restore \
   --backup-id my-repo_20250624_160000 --target ./restored-repo --force
 ```
 
 ### System Status and Validation
 ```bash
 # Check overall system status
-bash scripts/apply-template.sh status
+bash scripts/templates/apply-template.sh status
 
 # List available templates
-bash scripts/apply-template.sh list templates
+bash scripts/templates/apply-template.sh list templates
 
 # Validate template configuration
-bash scripts/apply-template.sh validate -t gitops-standard
+bash scripts/templates/apply-template.sh validate -t gitops-standard
 
 # Analyze potential conflicts
-bash scripts/apply-template.sh conflicts analyze --template template.md --existing existing.md
+bash scripts/templates/apply-template.sh conflicts analyze --template template.md --existing existing.md
 ```
 
 ## 🔄 Integration with Existing Systems
@@ -263,10 +263,10 @@ bash scripts/apply-template.sh conflicts analyze --template template.md --existi
 ## 📞 Support and Documentation
 
 ### Getting Started
-1. **System Status**: `bash scripts/apply-template.sh status`
-2. **Help System**: `bash scripts/apply-template.sh help`
-3. **Template Listing**: `bash scripts/apply-template.sh list templates`
-4. **Dry Run Test**: `bash scripts/apply-template.sh apply -t <template> -r <repo> --dry-run`
+1. **System Status**: `bash scripts/templates/apply-template.sh status`
+2. **Help System**: `bash scripts/templates/apply-template.sh help`
+3. **Template Listing**: `bash scripts/templates/apply-template.sh list templates`
+4. **Dry Run Test**: `bash scripts/templates/apply-template.sh apply -t <template> -r <repo> --dry-run`
 
 ### Troubleshooting
 - **Dependency Issues**: Check Python 3.8+ installation and MCP directory structure

@@ -24,7 +24,7 @@ This guide covers the complete setup and management of the GitOps Auditor's 3-ti
 ```bash
 # Run the enhanced development provisioning script
 cd /home/dev/workspace/homelab-gitops-auditor
-./scripts/provision-lxc-dev-enhanced.sh
+./scripts/deployment/provision-lxc-dev-enhanced.sh
 ```
 
 **What this creates:**
@@ -43,7 +43,7 @@ cd /home/dev/workspace/homelab-gitops-auditor
 
 ```bash
 # Run the QA environment provisioning script
-./scripts/provision-lxc-qa.sh
+./scripts/deployment/provision-lxc-qa.sh
 ```
 
 **What this creates:**
@@ -108,7 +108,7 @@ gitops-qa-workflow test performance # Performance benchmarks
 
 ```bash
 # Deploy to production (existing process)
-./scripts/deploy-production.sh
+./scripts/deployment/deploy-production.sh
 ```
 
 ## Environment Management
@@ -249,14 +249,14 @@ tar -czf qa-backup-$(date +%Y%m%d).tar.gz \
 ```bash
 gitops-dev-workflow stop
 # Restore from backup or re-run provisioning script
-./scripts/provision-lxc-dev-enhanced.sh
+./scripts/deployment/provision-lxc-dev-enhanced.sh
 ```
 
 **QA Environment Recovery:**
 ```bash
 gitops-qa-workflow stop
 # Restore from backup or re-run provisioning script
-./scripts/provision-lxc-qa.sh
+./scripts/deployment/provision-lxc-qa.sh
 ```
 
 ## Best Practices
