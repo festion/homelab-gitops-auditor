@@ -14,8 +14,20 @@ const { handleEmailSummary } = require('./email-notifications');
 // v1.2.0 WebSocket Feature import
 const WebSocketManager = require('./websocket-server');
 
+// GitHub Webhook Handler
+const WebhookHandler = require('./services/webhook-handler');
+
 // Phase 2 API Endpoints
 const phase2Router = require('./phase2-endpoints');
+
+// Authentication System
+const Database = require('./models/database');
+const SecurityMiddleware = require('./middleware/security');
+const authRoutes = require('./routes/auth');
+
+// WikiJS Agent System
+const WikiAgentManager = require('./wiki-agent-manager');
+const wikiRoutes = require('./routes/wiki');
 
 // Parse command line arguments for port
 const args = process.argv.slice(2);
@@ -33,21 +45,40 @@ const PORT = portFromArg || process.env.PORT || 3070;
 const HISTORY_DIR = path.join(rootDir, 'audit-history');
 const LOCAL_DIR = isDev ? '/mnt/c/GIT' : '/mnt/c/GIT';
 
-// Enable CORS for development
-if (isDev) {
-  const allowedOrigins = config.get('ALLOWED_ORIGINS');
-  app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', allowedOrigins);
-    res.header(
-      'Access-Control-Allow-Headers',
-      'Origin, X-Requested-With, Content-Type, Accept'
-    );
-    res.header(
-      'Access-Control-Allow-Methods',
-      'GET, POST, OPTIONS, PUT, DELETE'
-    );
-    next();
-  });
+// WikiJS Agent Manager instance
+let wikiAgentManager;
+
+// Security middleware
+if (process.env.NODE_ENV === 'production') {
+  SecurityMiddleware.productionSecurity().forEach(middleware => app.use(middleware));
+} else {
+  SecurityMiddleware.developmentSecurity().forEach(middleware => app.use(middleware));
+}
+
+// Initialize authentication database
+async function initializeAuth() {
+  try {
+    const db = Database.getInstance();
+    await db.connect();
+    await db.initializeSchema();
+    await db.createDefaultAdmin();
+    console.log('Authentication system initialized');
+  } catch (error) {
+    console.error('Failed to initialize authentication:', error);
+    process.exit(1);
+  }
+}
+
+// Initialize WikiJS Agent Manager
+async function initializeWikiAgent() {
+  try {
+    wikiAgentManager = new WikiAgentManager(config, rootDir);
+    await wikiAgentManager.initialize();
+    console.log('WikiJS Agent Manager initialized');
+  } catch (error) {
+    console.error('Failed to initialize WikiJS Agent Manager:', error);
+    // Don't exit process - wiki functionality is optional
+  }
 }
 
 // Serve static dashboard files in development
@@ -57,8 +88,17 @@ if (isDev) {
 
 app.use(express.json());
 
+// Mount authentication routes
+app.use('/api/v2/auth', authRoutes);
+
 // Mount Phase 2 routes
 app.use('/api/v2', phase2Router);
+
+// Mount WikiJS Agent routes
+app.use('/api/wiki', (req, res, next) => {
+  req.wikiAgentManager = wikiAgentManager;
+  next();
+}, wikiRoutes);
 
 // Load latest audit report
 app.get('/audit', (req, res) => {
@@ -305,6 +345,18 @@ app.get('/audit/diff/:repo', (req, res) => {
   });
 });
 
+// GitHub Webhook endpoint - must use raw body parser
+app.post('/api/v2/webhooks/github', express.raw({ type: 'application/json' }), (req, res, next) => {
+  // Convert raw body back to JSON for webhook handler
+  try {
+    req.body = JSON.parse(req.body);
+    next();
+  } catch (error) {
+    console.error('Invalid JSON in webhook payload:', error);
+    res.status(400).json({ error: 'Invalid JSON payload' });
+  }
+});
+
 // Initialize WebSocket Manager
 const auditDataPath = isDev 
   ? path.join(rootDir, 'dashboard/public/GitRepoReport.json')
@@ -312,9 +364,19 @@ const auditDataPath = isDev
 
 let wsManager;
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🔧 GitOps Audit API running on port ${PORT}`);
-  console.log(`📋 Configuration loaded successfully`);
+// Start server with authentication initialization
+async function startServer() {
+  try {
+    // Initialize authentication system first
+    await initializeAuth();
+    
+    // Initialize WikiJS Agent Manager
+    await initializeWikiAgent();
+    
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🔧 GitOps Audit API running on port ${PORT}`);
+      console.log(`📋 Configuration loaded successfully`);
+      console.log(`🔐 Authentication system ready`);
 
   // Initialize WebSocket after server starts
   try {
@@ -325,6 +387,64 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🔌 WebSocket server initialized - watching: ${auditDataPath}`);
   } catch (error) {
     console.error(`❌ Failed to initialize WebSocket server:`, error);
+  }
+
+  // Initialize GitHub Webhook Handler
+  try {
+    const webhookHandler = new WebhookHandler({
+      secret: process.env.GITHUB_WEBHOOK_SECRET,
+      websocketService: wsManager
+    });
+
+    // Store webhook handler in app locals for endpoint access
+    app.locals.webhookHandler = webhookHandler;
+
+    // Set up webhook endpoint with the middleware
+    app.use('/api/v2/webhooks/github', webhookHandler.middleware());
+
+    // Connect webhook events to WebSocket broadcasts
+    webhookHandler.on('push_event', (event) => {
+      if (wsManager) {
+        wsManager.broadcastUpdate({
+          type: 'webhook',
+          eventType: 'push',
+          data: event
+        });
+      }
+    });
+
+    webhookHandler.on('workflow_run_event', (event) => {
+      if (wsManager) {
+        wsManager.broadcastUpdate({
+          type: 'webhook',
+          eventType: 'workflow_run',
+          data: event
+        });
+      }
+    });
+
+    webhookHandler.on('pull_request_event', (event) => {
+      if (wsManager) {
+        wsManager.broadcastUpdate({
+          type: 'webhook',
+          eventType: 'pull_request',
+          data: event
+        });
+      }
+    });
+
+    webhookHandler.on('audit_refresh_needed', (event) => {
+      if (wsManager) {
+        wsManager.broadcastUpdate({
+          type: 'audit_refresh',
+          data: event
+        });
+      }
+    });
+
+    console.log(`🪝 GitHub webhook handler initialized - endpoint: /api/v2/webhooks/github`);
+  } catch (error) {
+    console.error(`❌ Failed to initialize webhook handler:`, error);
   }
 
   if (config.getBoolean('ENABLE_VERBOSE_LOGGING')) {
@@ -342,31 +462,44 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`📁 Local Git Root: ${config.get('LOCAL_GIT_ROOT')}`);
     console.log(`🔌 WebSocket: ws://0.0.0.0:${PORT}/ws`);
   }
-});
-
-// Graceful shutdown handling
-process.on('SIGTERM', () => {
-  console.log('📊 SIGTERM received, shutting down gracefully');
-  
-  if (wsManager) {
-    wsManager.cleanup();
+    });
+    
+    return server;
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
   }
-  
-  server.close(() => {
-    console.log('✅ Server closed');
-    process.exit(0);
-  });
-});
+}
 
-process.on('SIGINT', () => {
-  console.log('📊 SIGINT received, shutting down gracefully');
-  
-  if (wsManager) {
-    wsManager.cleanup();
-  }
-  
-  server.close(() => {
-    console.log('✅ Server closed');
-    process.exit(0);
+// Start the server
+startServer().then(server => {
+  // Graceful shutdown handling
+  process.on('SIGTERM', () => {
+    console.log('📊 SIGTERM received, shutting down gracefully');
+    
+    if (wsManager) {
+      wsManager.cleanup();
+    }
+    
+    server.close(() => {
+      console.log('✅ Server closed');
+      process.exit(0);
+    });
   });
+
+  process.on('SIGINT', () => {
+    console.log('📊 SIGINT received, shutting down gracefully');
+    
+    if (wsManager) {
+      wsManager.cleanup();
+    }
+    
+    server.close(() => {
+      console.log('✅ Server closed');
+      process.exit(0);
+    });
+  });
+}).catch(error => {
+  console.error('❌ Failed to start server:', error);
+  process.exit(1);
 });

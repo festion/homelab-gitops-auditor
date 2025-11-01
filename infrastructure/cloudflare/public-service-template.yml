@@ -1,0 +1,224 @@
+# Example: Adding a Public Service Through Cloudflare Tunnel
+# This is a template for exposing a service publicly via the Cloudflare Tunnel
+
+# =============================================================================
+# Step 1: Update Cloudflared Configuration (LXC 102)
+# =============================================================================
+# File: /etc/cloudflared/config.yml
+#
+# IMPORTANT: More specific hostnames must come BEFORE wildcard rules
+# =============================================================================
+
+cloudflared_config_example: |
+  tunnel: 927a334b-f404-44d6-82b8-95366738efe7
+  credentials-file: /root/.cloudflared/927a334b-f404-44d6-82b8-95366738efe7.json
+
+  ingress:
+    # === PUBLIC SERVICES ===
+    # Add specific public services here, before the wildcard rule
+    
+    - hostname: "blog.lakehouse.wtf"
+      service: http://192.168.1.110:80
+      # Optional: Additional settings
+      # originRequest:
+      #   connectTimeout: 30s
+      #   noTLSVerify: false
+    
+    - hostname: "api.lakehouse.wtf"
+      service: http://192.168.1.110:80
+    
+    # === INTERNAL SERVICES (WARP CLIENT ACCESS) ===
+    # This wildcard catches all other *.lakehouse.wtf domains
+    # Only accessible via Cloudflare WARP client
+    - hostname: "*.lakehouse.wtf"
+      service: http://192.168.1.110:80
+    
+    # === REQUIRED CATCH-ALL ===
+    - service: http_status:404
+
+# After editing, restart cloudflared:
+# ssh root@192.168.1.137 "pct exec 102 -- systemctl restart cloudflared"
+
+# =============================================================================
+# Step 2: Add Traefik Router (LXC 110)
+# =============================================================================
+# File: /etc/traefik/dynamic/routers.yml
+# Add this to the http.routers section
+# =============================================================================
+
+traefik_router_example: |
+  http:
+    routers:
+      blog-router:
+        rule: Host(`blog.lakehouse.wtf`)
+        service: blog-service
+        entryPoints:
+          - websecure
+        middlewares:
+          - cloudflare-real-ip    # REQUIRED: Get real client IP
+          - secure-headers         # Security headers
+          - public-rate-limit      # Optional: Rate limiting
+        tls:
+          certResolver: cloudflare
+          domains:
+            - main: "*.lakehouse.wtf"
+
+# =============================================================================
+# Step 3: Define Service Backend (LXC 110)
+# =============================================================================
+# File: /etc/traefik/dynamic/services.yml
+# Add this to the http.services section
+# =============================================================================
+
+traefik_service_example: |
+  http:
+    services:
+      blog-service:
+        loadBalancer:
+          servers:
+            - url: "http://192.168.1.50:8080"  # Your backend server
+          # Optional: Health check
+          healthCheck:
+            path: /health
+            interval: 10s
+            timeout: 3s
+
+# =============================================================================
+# Step 4: Add Rate Limiting Middleware (Optional but Recommended)
+# =============================================================================
+# File: /etc/traefik/dynamic/middlewares.yml
+# Add this to the http.middlewares section
+# =============================================================================
+
+traefik_middleware_example: |
+  http:
+    middlewares:
+      public-rate-limit:
+        rateLimit:
+          average: 100        # Average requests per period
+          burst: 50           # Maximum burst size
+          period: 1m          # Time period
+      
+      # Optional: Basic authentication
+      public-basic-auth:
+        basicAuth:
+          users:
+            - "admin:$apr1$..."  # Generate with: htpasswd -nb admin password
+
+# After editing Traefik configs, changes apply automatically (file provider watches for changes)
+# Or force reload: ssh root@192.168.1.137 "pct exec 110 -- systemctl reload traefik"
+
+# =============================================================================
+# Step 5: Configure Cloudflare DNS
+# =============================================================================
+# Go to: https://dash.cloudflare.com → Your domain → DNS → Records
+#
+# Add CNAME record:
+# - Type: CNAME
+# - Name: blog (or @ for root domain, or * for wildcard)
+# - Target: 927a334b-f404-44d6-82b8-95366738efe7.cfargotunnel.com
+# - Proxy status: Proxied (orange cloud) ← IMPORTANT
+# - TTL: Auto
+# =============================================================================
+
+# =============================================================================
+# Step 6 (Optional): Configure Cloudflare Zero Trust
+# =============================================================================
+# For authenticated access, go to:
+# https://one.dash.cloudflare.com → Access → Applications → Add an application
+#
+# Configure:
+# 1. Application type: Self-hosted
+# 2. Application domain: blog.lakehouse.wtf
+# 3. Session duration: 24 hours (or as needed)
+# 4. Add policies:
+#    - Allow: Email ends with @yourdomain.com
+#    - Allow: Country is United States
+#    - Allow: Email is specific@email.com
+# 5. Advanced settings:
+#    - Enable automatic HTTPS rewrites
+#    - Enable browser rendering
+# =============================================================================
+
+# =============================================================================
+# Validation Checklist
+# =============================================================================
+# 
+# [ ] Cloudflared config updated with specific hostname
+# [ ] Cloudflared service restarted successfully
+# [ ] Traefik router configuration added
+# [ ] Traefik service backend defined
+# [ ] Cloudflare DNS CNAME record created
+# [ ] DNS record is Proxied (orange cloud)
+# [ ] Service accessible from public internet
+# [ ] Real client IP is detected (check logs)
+# [ ] HTTPS is working (Cloudflare manages cert)
+# [ ] (Optional) Zero Trust policy configured and working
+# [ ] (Optional) Rate limiting tested
+# 
+# =============================================================================
+
+# =============================================================================
+# Testing Commands
+# =============================================================================
+
+testing_commands: |
+  # Test tunnel connectivity
+  ssh root@192.168.1.137 "pct exec 102 -- systemctl status cloudflared"
+  
+  # Check tunnel logs
+  ssh root@192.168.1.137 "pct exec 102 -- journalctl -u cloudflared -n 50"
+  
+  # Test Traefik configuration
+  ssh root@192.168.1.137 "pct exec 110 -- cat /etc/traefik/dynamic/routers.yml | grep -A 10 blog"
+  
+  # Test from external network (use your phone or external server)
+  curl -I https://blog.lakehouse.wtf
+  
+  # Check Traefik logs for request
+  ssh root@192.168.1.137 "pct exec 110 -- tail -20 /var/log/traefik/access.log"
+  
+  # Verify real client IP is detected
+  ssh root@192.168.1.137 "pct exec 110 -- grep 'blog.lakehouse.wtf' /var/log/traefik/access.log | tail -5"
+
+# =============================================================================
+# Security Best Practices
+# =============================================================================
+
+security_checklist: |
+  1. Always use cloudflare-real-ip middleware for public services
+  2. Implement rate limiting to prevent abuse
+  3. Use secure-headers middleware for security headers
+  4. Consider Zero Trust authentication for sensitive services
+  5. Monitor access logs regularly
+  6. Keep cloudflared and Traefik updated
+  7. Use strong passwords for any basic auth
+  8. Limit which services are exposed publicly (principle of least privilege)
+  9. Consider IP restrictions in addition to authentication
+  10. Enable Cloudflare WAF rules if needed
+
+# =============================================================================
+# Troubleshooting
+# =============================================================================
+
+troubleshooting_tips: |
+  Issue: Service not accessible
+  - Verify DNS propagation: dig blog.lakehouse.wtf
+  - Check cloudflared logs for connection errors
+  - Verify hostname in ingress rule matches exactly
+  - Ensure Traefik router rule matches hostname
+  
+  Issue: Wrong client IP shown in logs
+  - Add cloudflare-real-ip middleware to router
+  - Check middleware is properly configured
+  - Verify plugin is loaded: pct exec 110 -- grep traefik-real-ip /etc/traefik/traefik.yml
+  
+  Issue: Certificate errors
+  - Cloudflare handles SSL termination, cert should be automatic
+  - Verify DNS record is Proxied (orange cloud)
+  - Check Cloudflare SSL/TLS mode is "Flexible" or "Full"
+  
+  Issue: 502 Bad Gateway
+  - Check backend service is running and accessible from Traefik
+  - Verify backend URL in service configuration
+  - Check Traefik can reach backend: pct exec 110 -- curl http://BACKEND_IP:PORT

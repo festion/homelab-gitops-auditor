@@ -1,0 +1,19 @@
+# Traefik Environment Variables
+#
+# Copy this file to /etc/traefik/environment on the Traefik LXC container
+# and populate with your actual credentials.
+#
+# File permissions: chmod 600 /etc/traefik/environment
+#
+
+# Cloudflare API credentials for DNS-01 ACME challenge
+# Get your API token from: https://dash.cloudflare.com/profile/api-tokens
+# Required permissions: Zone:DNS:Edit, Zone:Zone:Read
+CF_DNS_API_TOKEN=your_cloudflare_api_token_here
+
+# Optional: Email for Let's Encrypt notifications
+# (Already configured in traefik.yml, but can override here)
+#ACME_EMAIL=admin@example.com
+
+# Optional: Traefik log level (DEBUG, INFO, WARN, ERROR)
+#TRAEFIK_LOG_LEVEL=INFO

@@ -1,0 +1,168 @@
+{
+  "version": "2.0.0",
+  "discoveryConfig": {
+    "sources": [
+      {
+        "id": "homelab-primary",
+        "path": "/home/dev/workspace/homelab-gitops-auditor",
+        "type": "primary",
+        "priority": "high",
+        "weight": 100,
+        "recursive": true,
+        "enabled": true,
+        "description": "Primary homelab GitOps auditor repository",
+        "tags": ["primary", "homelab", "gitops"],
+        "scanInterval": "daily"
+      },
+      {
+        "id": "repos-directory",
+        "path": "/repos",
+        "type": "repositories",
+        "priority": "medium",
+        "weight": 80,
+        "recursive": true,
+        "enabled": true,
+        "description": "Local repositories directory",
+        "tags": ["local", "repositories"],
+        "scanInterval": "daily"
+      },
+      {
+        "id": "external-git",
+        "path": "/mnt/c/GIT",
+        "type": "external",
+        "priority": "low",
+        "weight": 60,
+        "recursive": true,
+        "enabled": true,
+        "description": "External Git directories",
+        "tags": ["external", "git"],
+        "scanInterval": "weekly"
+      },
+      {
+        "id": "user-workspace",
+        "path": "/home/dev/workspace",
+        "type": "workspace",
+        "priority": "medium",
+        "weight": 70,
+        "recursive": true,
+        "enabled": true,
+        "description": "User workspace directory",
+        "tags": ["workspace", "development"],
+        "scanInterval": "daily",
+        "maxDepth": 3
+      }
+    ],
+    "excludePatterns": [
+      "node_modules/**",
+      ".git/**",
+      "build/**",
+      "dist/**",
+      "target/**",
+      ".next/**",
+      ".nuxt/**",
+      "coverage/**",
+      "*.log",
+      ".DS_Store",
+      "Thumbs.db",
+      "__pycache__/**",
+      "*.pyc",
+      ".pytest_cache/**",
+      ".tox/**",
+      ".venv/**",
+      "venv/**",
+      ".env*",
+      "*.tmp",
+      "*.temp",
+      ".cache/**",
+      ".npm/**",
+      ".yarn/**",
+      "package-lock.json",
+      "yarn.lock",
+      "composer.lock",
+      "*.min.*",
+      "vendor/**",
+      ".idea/**",
+      ".vscode/**",
+      ".vs/**",
+      "*.backup",
+      "*.bak",
+      ".swp",
+      ".swo",
+      "*~"
+    ],
+    "includePatterns": [
+      "*.md",
+      "*.markdown",
+      "*.txt",
+      "*.rst",
+      "*.adoc",
+      "*.asciidoc",
+      "README*",
+      "readme*",
+      "CHANGELOG*",
+      "changelog*",
+      "CONTRIBUTING*",
+      "contributing*",
+      "LICENSE*",
+      "license*",
+      "INSTALL*",
+      "install*",
+      "USAGE*",
+      "usage*",
+      "GUIDE*",
+      "guide*",
+      "TUTORIAL*",
+      "tutorial*",
+      "FAQ*",
+      "faq*"
+    ],
+    "performance": {
+      "maxConcurrentSources": 3,
+      "maxFilesPerBatch": 100,
+      "maxFileSize": "10MB",
+      "timeoutPerSource": 300000,
+      "enableProgressReporting": true,
+      "enableMemoryOptimization": true
+    },
+    "contentAnalysis": {
+      "enableNLPClassification": true,
+      "enableContentHashing": true,
+      "enableLinkExtraction": true,
+      "enableMetadataExtraction": true,
+      "minContentLength": 10,
+      "maxContentLength": "1MB"
+    },
+    "priorityScoring": {
+      "weights": {
+        "documentType": 0.3,
+        "lastModified": 0.2,
+        "fileSize": 0.1,
+        "repositoryImportance": 0.25,
+        "contentQuality": 0.15
+      },
+      "documentTypeScores": {
+        "readme": 95,
+        "docs": 85,
+        "api": 80,
+        "guide": 75,
+        "config": 65,
+        "changelog": 60,
+        "reference": 70,
+        "unknown": 40
+      },
+      "sourceLocationScores": {
+        "primary": 50,
+        "repositories": 30,
+        "workspace": 35,
+        "external": 20
+      }
+    },
+    "monitoring": {
+      "enableHealthChecks": true,
+      "enablePerformanceMetrics": true,
+      "enableErrorTracking": true,
+      "logLevel": "info",
+      "maxLogRetention": "30d"
+    }
+  }
+}

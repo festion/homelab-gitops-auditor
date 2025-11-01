@@ -29,7 +29,17 @@ class Phase2WebSocketExtension {
       {
         name: 'pipelines',
         description: 'Pipeline execution and status updates',
-        events: ['pipeline.started', 'pipeline.progress', 'pipeline.completed', 'pipeline.failed', 'pipeline.stage.update']
+        events: [
+          'pipeline.started', 
+          'pipeline.progress', 
+          'pipeline.completed', 
+          'pipeline.failed', 
+          'pipeline.stage.update',
+          'pipeline.triggered',
+          'pipeline.step-update',
+          'pipeline.metrics',
+          'pipeline.status-summary'
+        ]
       },
       {
         name: 'dependencies',
@@ -40,6 +50,26 @@ class Phase2WebSocketExtension {
         name: 'quality',
         description: 'Quality gate validation updates',
         events: ['quality.check.started', 'quality.check.progress', 'quality.check.completed', 'quality.threshold.changed']
+      },
+      {
+        name: 'compliance',
+        description: 'Template compliance tracking and application updates',
+        events: [
+          'compliance.checked',
+          'compliance.job-started',
+          'compliance.job-progress', 
+          'compliance.job-completed',
+          'compliance.job-failed',
+          'compliance.application-started',
+          'compliance.application-completed',
+          'compliance.application-failed',
+          'status.requested',
+          'repository.checked',
+          'check.triggered',
+          'templates.requested',
+          'history.requested',
+          'template.applied'
+        ]
       },
       {
         name: 'operations',

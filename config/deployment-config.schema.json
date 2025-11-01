@@ -1,0 +1,216 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Homelab GitOps Auditor Deployment Configuration",
+  "type": "object",
+  "properties": {
+    "deployment": {
+      "type": "object",
+      "properties": {
+        "homeAssistantConfig": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$",
+              "description": "GitHub repository in format owner/repo"
+            },
+            "targetServer": {
+              "type": "string",
+              "format": "ipv4",
+              "description": "Home Assistant server IP address"
+            },
+            "deploymentPath": {
+              "type": "string",
+              "description": "Target deployment path on Home Assistant server"
+            },
+            "backupRetention": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30,
+              "description": "Number of days to retain backups"
+            },
+            "healthCheckEndpoint": {
+              "type": "string",
+              "format": "uri",
+              "description": "Home Assistant health check API endpoint"
+            },
+            "deploymentTimeout": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 1800,
+              "description": "Deployment timeout in seconds"
+            }
+          },
+          "required": ["repository", "targetServer", "deploymentPath"]
+        }
+      },
+      "required": ["homeAssistantConfig"]
+    },
+    "api": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "host": {
+          "type": "string",
+          "description": "API server bind address"
+        },
+        "corsOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "rateLimit": {
+          "type": "object",
+          "properties": {
+            "windowMs": {
+              "type": "integer",
+              "minimum": 1000
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      },
+      "required": ["port", "host"]
+    },
+    "webhook": {
+      "type": "object",
+      "properties": {
+        "secret": {
+          "type": "string",
+          "minLength": 16,
+          "description": "GitHub webhook secret"
+        },
+        "allowedEvents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["repository_dispatch", "push", "pull_request"]
+          }
+        },
+        "allowedIPs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["secret", "allowedEvents"]
+    },
+    "mcp": {
+      "type": "object",
+      "properties": {
+        "networkFs": {
+          "type": "object",
+          "properties": {
+            "wrapper": {
+              "type": "string",
+              "description": "Path to network-fs MCP wrapper script"
+            },
+            "timeout": {
+              "type": "integer",
+              "minimum": 5000,
+              "maximum": 300000
+            },
+            "retries": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["wrapper"]
+        },
+        "github": {
+          "type": "object",
+          "properties": {
+            "wrapper": {
+              "type": "string",
+              "description": "Path to GitHub MCP wrapper script"
+            },
+            "timeout": {
+              "type": "integer",
+              "minimum": 5000,
+              "maximum": 300000
+            },
+            "retries": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["wrapper"]
+        }
+      },
+      "required": ["networkFs", "github"]
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"]
+        },
+        "format": {
+          "type": "string",
+          "enum": ["json", "text"]
+        },
+        "output": {
+          "type": "string",
+          "description": "Log output file path"
+        },
+        "maxSize": {
+          "type": "string",
+          "description": "Maximum log file size (e.g., \"10mb\")"
+        },
+        "maxFiles": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        }
+      },
+      "required": ["level", "format"]
+    },
+    "monitoring": {
+      "type": "object",
+      "properties": {
+        "healthCheckInterval": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 3600
+        },
+        "metricsPort": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "alerting": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "webhookUrl": {
+              "type": "string",
+              "format": "uri"
+            },
+            "channels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": ["deployment", "api", "webhook", "mcp", "logging", "monitoring"]
+}

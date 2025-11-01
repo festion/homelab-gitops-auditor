@@ -1,0 +1,69 @@
+# Prometheus Configuration for Traefik Monitoring
+#
+# This file contains the scrape configuration for Traefik metrics.
+# Add this to your Prometheus configuration by including it in the main prometheus.yml
+# or copying the scrape_configs section.
+#
+# Usage:
+#   Add to /etc/prometheus/prometheus.yml:
+#     scrape_configs:
+#       - <<: *traefik_scrape_config
+
+scrape_configs:
+  # Traefik reverse proxy metrics
+  - job_name: 'traefik'
+    static_configs:
+      - targets: ['192.168.1.110:8080']
+        labels:
+          environment: 'homelab'
+          role: 'reverse-proxy'
+          instance: 'traefik-primary'
+
+    # Scrape interval and timeout
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+    # Metrics path (Traefik default)
+    metrics_path: /metrics
+
+    # HTTP client configuration
+    honor_labels: true
+    honor_timestamps: true
+
+    # Optional: Basic authentication if metrics endpoint is secured
+    # basic_auth:
+    #   username: 'prometheus'
+    #   password: 'your_secure_password'
+
+    # Relabeling for better metric organization
+    metric_relabel_configs:
+      # Add datacenter label
+      - target_label: datacenter
+        replacement: 'home'
+
+      # Normalize service names (remove -service suffix if present)
+      - source_labels: [service]
+        regex: '(.+)-service'
+        target_label: service
+        replacement: '${1}'
+
+      # Add service_type label based on service name
+      - source_labels: [service]
+        regex: '(homeassistant|z2m|zwave-js-ui)'
+        target_label: service_type
+        replacement: 'smart-home'
+
+      - source_labels: [service]
+        regex: '(proxmox|proxmox2|omada|esphome)'
+        target_label: service_type
+        replacement: 'infrastructure'
+
+      - source_labels: [service]
+        regex: '(wiki|netbox)'
+        target_label: service_type
+        replacement: 'documentation'
+
+      - source_labels: [service]
+        regex: '(influx|pulse)'
+        target_label: service_type
+        replacement: 'monitoring'

@@ -1,0 +1,13 @@
+{
+  "logging": {
+    "level": "info",
+    "enableDebug": false
+  },
+  "monitoring": {
+    "healthCheckInterval": 60
+  },
+  "featureFlags": {
+    "enableAdvancedLogging": false,
+    "enableExperimentalFeatures": false
+  }
+}

@@ -1,0 +1,443 @@
+name: Performance Testing
+
+on:
+  schedule:
+    - cron: '0 1 * * *' # Daily at 1 AM
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'api/**'
+      - 'scripts/**'
+      - 'dashboard/**'
+
+jobs:
+  performance-tests:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: homelab_gitops_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies (API)
+      run: |
+        cd api
+        npm ci
+        
+    - name: Install dependencies (Dashboard)
+      run: |
+        cd dashboard
+        npm ci
+        
+    - name: Setup test environment
+      run: |
+        cd api
+        npm run db:migrate:test || echo "Database migration not configured"
+        npm run db:seed:test || echo "Database seeding not configured"
+        
+        # Start MCP servers if available
+        if [ -f "../scripts/start-mcp-servers.sh" ]; then
+          chmod +x ../scripts/start-mcp-servers.sh
+          ../scripts/start-mcp-servers.sh --test &
+          sleep 10
+        fi
+        
+    - name: Install performance testing tools
+      run: |
+        npm install -g artillery autocannon clinic
+        
+    - name: Build applications
+      run: |
+        cd api
+        npm run build || echo "API build not available"
+        cd ../dashboard
+        npm run build
+        
+    - name: Start API server for testing
+      run: |
+        cd api
+        NODE_ENV=test DATABASE_URL=postgresql://test_user:test_password@localhost:5432/homelab_gitops_test npm start &
+        sleep 15
+        
+    - name: API Performance Tests
+      run: |
+        echo "Running API performance tests..."
+        
+        # Test API health endpoint
+        echo "Testing /api/health endpoint..."
+        autocannon -c 10 -d 30s http://localhost:3001/api/health > api-health-perf.txt
+        
+        # Test deployment status endpoint
+        echo "Testing deployment status endpoint..."
+        autocannon -c 5 -d 30s http://localhost:3001/api/deployments/status > api-deployments-perf.txt || echo "Deployment endpoint not available"
+        
+        # Test GitOps endpoints
+        echo "Testing GitOps endpoints..."
+        autocannon -c 3 -d 30s http://localhost:3001/api/deployments/home-assistant-config/status > api-gitops-perf.txt || echo "GitOps endpoint not available"
+        
+        # Artillery load testing
+        echo "Running Artillery load tests..."
+        cat > artillery-config.yml << EOF
+        config:
+          target: 'http://localhost:3001'
+          phases:
+            - duration: 60
+              arrivalRate: 5
+              name: Warm up
+            - duration: 120
+              arrivalRate: 10
+              name: Sustained load
+            - duration: 60
+              arrivalRate: 20
+              name: Peak load
+        scenarios:
+          - name: "API Health Check"
+            weight: 50
+            flow:
+              - get:
+                  url: "/api/health"
+          - name: "Deployment Status"
+            weight: 30
+            flow:
+              - get:
+                  url: "/api/deployments/status"
+          - name: "GitOps Status"
+            weight: 20
+            flow:
+              - get:
+                  url: "/api/deployments/home-assistant-config/status"
+        EOF
+        
+        artillery run artillery-config.yml > artillery-results.txt || echo "Artillery test failed"
+        
+    - name: Memory and CPU profiling
+      run: |
+        echo "Running memory and CPU profiling..."
+        
+        # Stop current server
+        pkill -f "npm start" || true
+        sleep 5
+        
+        # Start server with profiling
+        cd api
+        clinic doctor --on-port 'autocannon -c 10 -d 30s http://localhost:3001/api/health' -- node index.js > clinic-results.txt 2>&1 || echo "Clinic profiling failed"
+        
+    - name: Database performance tests
+      run: |
+        echo "Running database performance tests..."
+        
+        # Test database connection performance
+        cd api
+        node -e "
+        const { Pool } = require('pg');
+        const pool = new Pool({
+          connectionString: 'postgresql://test_user:test_password@localhost:5432/homelab_gitops_test'
+        });
+        
+        async function testDbPerformance() {
+          const start = Date.now();
+          for (let i = 0; i < 100; i++) {
+            await pool.query('SELECT NOW()');
+          }
+          const end = Date.now();
+          console.log(\`Database performance: 100 queries in \${end - start}ms\`);
+          pool.end();
+        }
+        
+        testDbPerformance().catch(console.error);
+        " > db-performance.txt || echo "Database performance test failed"
+        
+    - name: Frontend build performance
+      run: |
+        echo "Testing frontend build performance..."
+        cd dashboard
+        
+        # Measure build time
+        start_time=$(date +%s)
+        npm run build
+        end_time=$(date +%s)
+        build_time=$((end_time - start_time))
+        
+        echo "Frontend build time: ${build_time}s" > ../frontend-build-perf.txt
+        
+        # Check bundle size
+        if [ -d "dist" ]; then
+          echo "Bundle sizes:" >> ../frontend-build-perf.txt
+          du -sh dist/* >> ../frontend-build-perf.txt 2>/dev/null || true
+        fi
+        
+    - name: Extract performance metrics
+      run: |
+        echo "Extracting performance metrics..."
+        
+        # API Health endpoint metrics
+        if [ -f "api-health-perf.txt" ]; then
+          API_RPS=$(grep "Req/Sec" api-health-perf.txt | tail -1 | awk '{print $2}' || echo "0")
+          API_LATENCY=$(grep "Latency" api-health-perf.txt | tail -1 | awk '{print $2}' || echo "0ms")
+          echo "API_RPS=$API_RPS" >> performance-metrics.env
+          echo "API_LATENCY=$API_LATENCY" >> performance-metrics.env
+        fi
+        
+        # Database performance
+        if [ -f "db-performance.txt" ]; then
+          DB_PERF=$(cat db-performance.txt)
+          echo "DB_PERFORMANCE=$DB_PERF" >> performance-metrics.env
+        fi
+        
+        # Build performance
+        if [ -f "frontend-build-perf.txt" ]; then
+          BUILD_TIME=$(head -1 frontend-build-perf.txt | grep -o '[0-9]*s' || echo "0s")
+          echo "BUILD_TIME=$BUILD_TIME" >> performance-metrics.env
+        fi
+        
+    - name: Generate performance report
+      run: |
+        cat > performance-report.json << EOF
+        {
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)",
+          "commit": "${{ github.sha }}",
+          "branch": "${{ github.ref_name }}",
+          "metrics": {
+            "api_requests_per_second": "${API_RPS:-"N/A"}",
+            "api_latency": "${API_LATENCY:-"N/A"}",
+            "database_performance": "${DB_PERF:-"N/A"}",
+            "build_time": "${BUILD_TIME:-"N/A"}"
+          },
+          "test_duration": "5 minutes",
+          "environment": "ci",
+          "status": "completed"
+        }
+        EOF
+        
+    - name: Check performance regressions
+      run: |
+        echo "Checking for performance regressions..."
+        
+        # Download previous baseline if available
+        if [ -f "performance-baseline.json" ]; then
+          echo "Comparing with baseline..."
+          
+          # Extract current API RPS
+          CURRENT_RPS=$(echo "${API_RPS:-0}" | grep -o '[0-9]*' || echo "0")
+          
+          # Extract baseline API RPS
+          BASELINE_RPS=$(jq -r '.metrics.api_requests_per_second' performance-baseline.json 2>/dev/null | grep -o '[0-9]*' || echo "0")
+          
+          # Check for regression (20% drop)
+          if [ "$BASELINE_RPS" -gt "0" ] && [ "$CURRENT_RPS" -gt "0" ]; then
+            REGRESSION_THRESHOLD=$((BASELINE_RPS * 80 / 100))
+            if [ "$CURRENT_RPS" -lt "$REGRESSION_THRESHOLD" ]; then
+              echo "⚠️ Performance regression detected!"
+              echo "Current RPS: $CURRENT_RPS, Baseline RPS: $BASELINE_RPS"
+              echo "Threshold: $REGRESSION_THRESHOLD"
+            else
+              echo "✅ No performance regression detected"
+            fi
+          fi
+        else
+          echo "No baseline found, creating initial baseline"
+        fi
+        
+    - name: Update performance baseline
+      if: github.ref == 'refs/heads/main'
+      run: |
+        # Update baseline only on main branch
+        cp performance-report.json performance-baseline.json
+        
+        # Commit baseline (if this is a scheduled run)
+        if [ "${{ github.event_name }}" = "schedule" ]; then
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add performance-baseline.json
+          git commit -m "Update performance baseline [skip ci]" || exit 0
+          git push || echo "Push failed, baseline not updated"
+        fi
+        
+    - name: Upload performance artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-results-${{ github.sha }}
+        path: |
+          performance-report.json
+          performance-metrics.env
+          api-health-perf.txt
+          api-deployments-perf.txt
+          api-gitops-perf.txt
+          artillery-results.txt
+          clinic-results.txt
+          frontend-build-perf.txt
+          db-performance.txt
+        retention-days: 30
+        if-no-files-found: ignore
+        
+    - name: Stop test services
+      if: always()
+      run: |
+        # Stop API server
+        pkill -f "npm start" || true
+        
+        # Stop MCP servers
+        if [ -f "scripts/stop-mcp-servers.sh" ]; then
+          ./scripts/stop-mcp-servers.sh || true
+        fi
+
+  lighthouse-performance:
+    name: Frontend Performance (Lighthouse)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: |
+        cd dashboard
+        npm ci
+        
+    - name: Build dashboard
+      run: |
+        cd dashboard
+        npm run build
+        
+    - name: Install Lighthouse CI
+      run: npm install -g @lhci/cli@0.12.x
+      
+    - name: Serve built application
+      run: |
+        cd dashboard
+        npx serve -s dist -l 3000 &
+        sleep 10
+        
+    - name: Run Lighthouse CI
+      run: |
+        lhci autorun --config=lighthouserc.json || echo "Lighthouse config not found, using defaults"
+        
+        # Run Lighthouse manually if no config
+        lhci collect --url=http://localhost:3000 --numberOfRuns=3
+        lhci assert --preset=lighthouse:recommended || echo "Lighthouse assertions failed"
+        
+    - name: Generate Lighthouse report
+      run: |
+        # Extract Lighthouse scores
+        if [ -f ".lighthouseci/lhr-*.json" ]; then
+          PERFORMANCE_SCORE=$(jq '.categories.performance.score * 100' .lighthouseci/lhr-*.json | head -1)
+          ACCESSIBILITY_SCORE=$(jq '.categories.accessibility.score * 100' .lighthouseci/lhr-*.json | head -1)
+          BEST_PRACTICES_SCORE=$(jq '.categories."best-practices".score * 100' .lighthouseci/lhr-*.json | head -1)
+          SEO_SCORE=$(jq '.categories.seo.score * 100' .lighthouseci/lhr-*.json | head -1)
+          
+          cat > lighthouse-report.json << EOF
+        {
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)",
+          "commit": "${{ github.sha }}",
+          "scores": {
+            "performance": $PERFORMANCE_SCORE,
+            "accessibility": $ACCESSIBILITY_SCORE,
+            "best_practices": $BEST_PRACTICES_SCORE,
+            "seo": $SEO_SCORE
+          }
+        }
+        EOF
+        fi
+        
+    - name: Upload Lighthouse results
+      uses: actions/upload-artifact@v4
+      with:
+        name: lighthouse-results-${{ github.sha }}
+        path: |
+          .lighthouseci/
+          lighthouse-report.json
+        retention-days: 30
+        if-no-files-found: ignore
+
+  performance-summary:
+    name: Performance Summary
+    runs-on: ubuntu-latest
+    needs: [performance-tests, lighthouse-performance]
+    if: always()
+    
+    steps:
+    - name: Download performance artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: '*-results-${{ github.sha }}'
+        merge-multiple: true
+        
+    - name: Generate performance summary
+      run: |
+        cat > PERFORMANCE_SUMMARY.md << EOF
+        # Performance Test Summary
+        
+        **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        **Commit:** ${{ github.sha }}
+        **Branch:** ${{ github.ref_name }}
+        
+        ## API Performance
+        EOF
+        
+        if [ -f "performance-report.json" ]; then
+          echo "- **Requests/Second:** $(jq -r '.metrics.api_requests_per_second' performance-report.json)" >> PERFORMANCE_SUMMARY.md
+          echo "- **Latency:** $(jq -r '.metrics.api_latency' performance-report.json)" >> PERFORMANCE_SUMMARY.md
+          echo "- **Database Performance:** $(jq -r '.metrics.database_performance' performance-report.json)" >> PERFORMANCE_SUMMARY.md
+        else
+          echo "- API performance tests not available" >> PERFORMANCE_SUMMARY.md
+        fi
+        
+        echo "" >> PERFORMANCE_SUMMARY.md
+        echo "## Frontend Performance" >> PERFORMANCE_SUMMARY.md
+        
+        if [ -f "lighthouse-report.json" ]; then
+          echo "- **Performance Score:** $(jq -r '.scores.performance' lighthouse-report.json)/100" >> PERFORMANCE_SUMMARY.md
+          echo "- **Accessibility Score:** $(jq -r '.scores.accessibility' lighthouse-report.json)/100" >> PERFORMANCE_SUMMARY.md
+          echo "- **Best Practices Score:** $(jq -r '.scores.best_practices' lighthouse-report.json)/100" >> PERFORMANCE_SUMMARY.md
+          echo "- **SEO Score:** $(jq -r '.scores.seo' lighthouse-report.json)/100" >> PERFORMANCE_SUMMARY.md
+        else
+          echo "- Frontend performance tests not available" >> PERFORMANCE_SUMMARY.md
+        fi
+        
+        echo "" >> PERFORMANCE_SUMMARY.md
+        echo "## Build Performance" >> PERFORMANCE_SUMMARY.md
+        if [ -f "performance-report.json" ]; then
+          echo "- **Build Time:** $(jq -r '.metrics.build_time' performance-report.json)" >> PERFORMANCE_SUMMARY.md
+        fi
+        
+        echo "" >> PERFORMANCE_SUMMARY.md
+        echo "## Recommendations" >> PERFORMANCE_SUMMARY.md
+        echo "- Monitor API response times under load" >> PERFORMANCE_SUMMARY.md
+        echo "- Optimize frontend bundle size if Lighthouse performance < 90" >> PERFORMANCE_SUMMARY.md
+        echo "- Consider database query optimization if needed" >> PERFORMANCE_SUMMARY.md
+        echo "- Review error rates during peak load testing" >> PERFORMANCE_SUMMARY.md
+        
+    - name: Upload performance summary
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-summary-${{ github.sha }}
+        path: PERFORMANCE_SUMMARY.md
+        retention-days: 90

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TemplateWizard } from '../../components/phase2/TemplateWizard';
 import { FileText, Play, History, TrendingUp, Package, Download, Star, Tag, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { ComplianceOverview, TemplateStatusGrid, ComplianceTrends, RepositoryComplianceList } from '../../components/compliance';
 
 interface Template {
   id: string;
@@ -375,10 +376,13 @@ const TemplatesPage: React.FC = () => {
       )}
       {activeTab === 'history' && renderHistoryTab()}
       {activeTab === 'compliance' && (
-        <div className="text-center py-8 text-gray-500">
-          <TrendingUp size={48} className="mx-auto mb-4 text-gray-300" />
-          <h3 className="text-lg font-medium mb-2">Compliance Reporting</h3>
-          <p>Template compliance metrics and reporting coming soon.</p>
+        <div className="space-y-6">
+          <ComplianceOverview />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <TemplateStatusGrid />
+            <ComplianceTrends />
+          </div>
+          <RepositoryComplianceList />
         </div>
       )}
     </div>

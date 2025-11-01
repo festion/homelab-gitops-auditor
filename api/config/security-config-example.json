@@ -1,0 +1,87 @@
+{
+  "security": {
+    "jwt": {
+      "secret": "your-super-secure-jwt-secret-minimum-32-characters-long",
+      "expiresIn": "24h",
+      "refreshExpiresIn": "7d",
+      "issuer": "homelab-gitops-auditor",
+      "audience": "deployment-api"
+    },
+    "apiKeys": [
+      {
+        "id": "webhook-key-1",
+        "name": "GitHub Webhook Key",
+        "key": "your-secure-api-key-for-github-webhooks",
+        "permissions": [
+          "webhook:receive",
+          "deployment:trigger"
+        ],
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "expiresAt": null
+      },
+      {
+        "id": "monitoring-key-1", 
+        "name": "Monitoring System Key",
+        "key": "your-secure-api-key-for-monitoring",
+        "permissions": [
+          "deployment:read",
+          "monitoring:read"
+        ],
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "expiresAt": "2024-12-31T23:59:59.999Z"
+      }
+    ],
+    "cors": {
+      "origins": [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://your-domain.com",
+        "https://dashboard.your-domain.com"
+      ],
+      "credentials": true
+    },
+    "rateLimit": {
+      "windowMs": 900000,
+      "max": 1000,
+      "authMax": 5,
+      "sensitiveMax": 10
+    },
+    "headers": {
+      "hsts": {
+        "maxAge": 31536000,
+        "includeSubDomains": true,
+        "preload": true
+      }
+    },
+    "ipFiltering": {
+      "whitelist": [
+        "192.168.1.0/24",
+        "10.0.0.0/8",
+        "172.16.0.0/12"
+      ],
+      "blacklist": [
+        "192.168.1.100"
+      ]
+    },
+    "audit": {
+      "logDirectory": "/var/log/homelab-gitops-auditor",
+      "retentionDays": 90,
+      "maxLogSize": "10MB",
+      "enableSecurityEventLogging": true,
+      "enablePerformanceLogging": true
+    },
+    "mfa": {
+      "enabled": true,
+      "required": false,
+      "tokenExpiration": 300
+    },
+    "passwordPolicy": {
+      "minLength": 8,
+      "requireUppercase": true,
+      "requireLowercase": true,
+      "requireNumbers": true,
+      "requireSpecialChars": true,
+      "preventReuse": 5
+    }
+  }
+}

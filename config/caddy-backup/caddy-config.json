@@ -1,0 +1,674 @@
+{
+    "apps": {
+        "http": {
+            "servers": {
+                "srv0": {
+                    "listen": [
+                        ":443"
+                    ],
+                    "logs": {
+                        "logger_names": {
+                            "*.internal.lakehouse.wtf": [
+                                "log0"
+                            ]
+                        },
+                        "skip_hosts": [
+                            "lakehouse.wtf"
+                        ]
+                    },
+                    "routes": [
+                        {
+                            "handle": [
+                                {
+                                    "handler": "subroute",
+                                    "routes": [
+                                        {
+                                            "handle": [
+                                                {
+                                                    "body": "Welcome to lakehouse.wtf",
+                                                    "handler": "static_response"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ],
+                            "match": [
+                                {
+                                    "host": [
+                                        "lakehouse.wtf"
+                                    ]
+                                }
+                            ],
+                            "terminal": true
+                        },
+                        {
+                            "handle": [
+                                {
+                                    "handler": "subroute",
+                                    "routes": [
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.253:80"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "adguard.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.80:8080"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "birdnet.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.155:8123"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "homeassistant.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.56:8086"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "influx.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.152:5216"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "myspeed.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "transport": {
+                                                                        "protocol": "http",
+                                                                        "tls": {
+                                                                            "insecure_skip_verify": true
+                                                                        }
+                                                                    },
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.47:8043"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "omada.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.97:3000"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "pairdrop.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "transport": {
+                                                                        "protocol": "http",
+                                                                        "tls": {
+                                                                            "insecure_skip_verify": true
+                                                                        }
+                                                                    },
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.137:8006"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "proxmox.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "transport": {
+                                                                        "protocol": "http",
+                                                                        "tls": {
+                                                                            "insecure_skip_verify": true
+                                                                        }
+                                                                    },
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.125:8006"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "proxmox2.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.122:7655"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "pulse.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.195:8840"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "watchyourlan.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.135:3000"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "wiki.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "headers": {
+                                                                        "request": {
+                                                                            "set": {
+                                                                                "Host": [
+                                                                                    "{http.reverse_proxy.upstream.hostport}"
+                                                                                ],
+                                                                                "X-Forwarded-For": [
+                                                                                    "{http.request.remote.host}"
+                                                                                ],
+                                                                                "X-Forwarded-Proto": [
+                                                                                    "{http.request.scheme}"
+                                                                                ],
+                                                                                "X-Real-Ip": [
+                                                                                    "{http.request.remote.host}"
+                                                                                ]
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.169:6052"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "esphome.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.228:8099"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "z2m.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "transport": {
+                                                                        "protocol": "http",
+                                                                        "tls": {
+                                                                            "insecure_skip_verify": true
+                                                                        }
+                                                                    },
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.141:8091"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "zwave-js-ui.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "headers": {
+                                                                        "request": {
+                                                                            "delete": [
+                                                                                "X-Forwarded-Host"
+                                                                            ]
+                                                                        }
+                                                                    },
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "192.168.1.138:80"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "netbox.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "group": "group18",
+                                            "handle": [
+                                                {
+                                                    "handler": "subroute",
+                                                    "routes": [
+                                                        {
+                                                            "handle": [
+                                                                {
+                                                                    "handler": "reverse_proxy",
+                                                                    "upstreams": [
+                                                                        {
+                                                                            "dial": "localhost:2019"
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "match": [
+                                                {
+                                                    "host": [
+                                                        "caddy.internal.lakehouse.wtf"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "handle": [
+                                                {
+                                                    "body": "Service not configured: {http.request.host}",
+                                                    "handler": "static_response",
+                                                    "status_code": 404
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ],
+                            "match": [
+                                {
+                                    "host": [
+                                        "*.internal.lakehouse.wtf"
+                                    ]
+                                }
+                            ],
+                            "terminal": true
+                        }
+                    ]
+                }
+            }
+        },
+        "tls": {
+            "automation": {
+                "policies": [
+                    {
+                        "issuers": [
+                            {
+                                "challenges": {
+                                    "dns": {
+                                        "provider": {
+                                            "api_token": "{env.CLOUDFLARE_API_TOKEN}",
+                                            "name": "cloudflare"
+                                        }
+                                    }
+                                },
+                                "email": "admin@lakehouse.wtf",
+                                "module": "acme"
+                            },
+                            {
+                                "ca": "https://acme.zerossl.com/v2/DV90",
+                                "challenges": {
+                                    "dns": {
+                                        "provider": {
+                                            "api_token": "{env.CLOUDFLARE_API_TOKEN}",
+                                            "name": "cloudflare"
+                                        }
+                                    }
+                                },
+                                "email": "admin@lakehouse.wtf",
+                                "module": "acme"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    },
+    "logging": {
+        "logs": {
+            "default": {
+                "exclude": [
+                    "http.log.access.log0"
+                ]
+            },
+            "log0": {
+                "encoder": {
+                    "format": "json"
+                },
+                "include": [
+                    "http.log.access.log0"
+                ],
+                "writer": {
+                    "filename": "/var/log/caddy/access.log",
+                    "output": "file"
+                }
+            }
+        }
+    }
+}

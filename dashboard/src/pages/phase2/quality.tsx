@@ -338,8 +338,8 @@ const QualityPage: React.FC = () => {
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left disabled:opacity-50"
             >
               <Shield className="text-green-500 mb-2" size={24} />
-              <h4 className="font-medium">Run Security Scan</h4>
-              <p className="text-sm text-gray-600">Security and deployment checks</p>
+              <h4 className="font-medium">Run Shield Scan</h4>
+              <p className="text-sm text-gray-600">Shield and deployment checks</p>
             </button>
           </div>
         </div>

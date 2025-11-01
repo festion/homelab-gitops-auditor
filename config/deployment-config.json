@@ -1,0 +1,63 @@
+{
+  "deployment": {
+    "homeAssistantConfig": {
+      "repository": "festion/home-assistant-config",
+      "targetServer": "192.168.1.155",
+      "deploymentPath": "/config",
+      "backupRetention": 7,
+      "healthCheckEndpoint": "http://192.168.1.155:8123/api/",
+      "deploymentTimeout": 300
+    }
+  },
+  "api": {
+    "port": 3071,
+    "host": "0.0.0.0",
+    "corsOrigins": [
+      "http://192.168.1.58",
+      "http://localhost:3000"
+    ],
+    "rateLimit": {
+      "windowMs": 60000,
+      "max": 100
+    }
+  },
+  "webhook": {
+    "secret": "${GITHUB_WEBHOOK_SECRET}",
+    "allowedEvents": [
+      "repository_dispatch",
+      "push"
+    ],
+    "allowedIPs": [
+      "140.82.112.0/20",
+      "185.199.108.0/22"
+    ]
+  },
+  "mcp": {
+    "networkFs": {
+      "wrapper": "/home/dev/workspace/network-mcp-wrapper.sh",
+      "timeout": 30000,
+      "retries": 3
+    },
+    "github": {
+      "wrapper": "/home/dev/workspace/github-wrapper.sh",
+      "timeout": 30000,
+      "retries": 3
+    }
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "output": "/var/log/homelab-gitops-auditor/deployment.log",
+    "maxSize": "10mb",
+    "maxFiles": 5
+  },
+  "monitoring": {
+    "healthCheckInterval": 60,
+    "metricsPort": 9090,
+    "alerting": {
+      "enabled": true,
+      "webhookUrl": "${ALERT_WEBHOOK_URL}",
+      "channels": ["#ops", "#deployments"]
+    }
+  }
+}

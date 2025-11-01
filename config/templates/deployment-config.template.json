@@ -1,0 +1,63 @@
+{
+  "deployment": {
+    "homeAssistantConfig": {
+      "repository": "${GITHUB_REPOSITORY}",
+      "targetServer": "${HOME_ASSISTANT_SERVER}",
+      "deploymentPath": "${DEPLOYMENT_PATH:-/config}",
+      "backupRetention": "${BACKUP_RETENTION_DAYS:-7}",
+      "healthCheckEndpoint": "${HOME_ASSISTANT_HEALTH_ENDPOINT}",
+      "deploymentTimeout": "${DEPLOYMENT_TIMEOUT:-300}"
+    }
+  },
+  "api": {
+    "port": "${API_PORT:-3071}",
+    "host": "${API_HOST:-0.0.0.0}",
+    "corsOrigins": [
+      "${CORS_ORIGIN_1}",
+      "${CORS_ORIGIN_2:-http://localhost:3000}"
+    ],
+    "rateLimit": {
+      "windowMs": "${RATE_LIMIT_WINDOW:-60000}",
+      "max": "${RATE_LIMIT_MAX:-100}"
+    }
+  },
+  "webhook": {
+    "secret": "${GITHUB_WEBHOOK_SECRET}",
+    "allowedEvents": [
+      "repository_dispatch",
+      "push"
+    ],
+    "allowedIPs": [
+      "${GITHUB_IP_RANGE_1:-140.82.112.0/20}",
+      "${GITHUB_IP_RANGE_2:-185.199.108.0/22}"
+    ]
+  },
+  "mcp": {
+    "networkFs": {
+      "wrapper": "${NETWORK_FS_WRAPPER:-/home/dev/workspace/network-mcp-wrapper.sh}",
+      "timeout": "${MCP_TIMEOUT:-30000}",
+      "retries": "${MCP_RETRIES:-3}"
+    },
+    "github": {
+      "wrapper": "${GITHUB_WRAPPER:-/home/dev/workspace/github-wrapper.sh}",
+      "timeout": "${MCP_TIMEOUT:-30000}",
+      "retries": "${MCP_RETRIES:-3}"
+    }
+  },
+  "logging": {
+    "level": "${LOG_LEVEL:-info}",
+    "format": "${LOG_FORMAT:-json}",
+    "output": "${LOG_OUTPUT:-/var/log/homelab-gitops-auditor/deployment.log}",
+    "maxSize": "${LOG_MAX_SIZE:-10mb}",
+    "maxFiles": "${LOG_MAX_FILES:-5}"
+  },
+  "monitoring": {
+    "healthCheckInterval": "${HEALTH_CHECK_INTERVAL:-60}",
+    "metricsPort": "${METRICS_PORT:-9090}",
+    "alerting": {
+      "enabled": "${ALERTING_ENABLED:-true}",
+      "webhookUrl": "${ALERT_WEBHOOK_URL}",
+      "channels": ["${ALERT_CHANNEL_1:-#ops}", "${ALERT_CHANNEL_2:-#deployments}"]
+    }
+  }
+}

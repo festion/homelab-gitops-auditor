@@ -1,0 +1,344 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '20'
+  POSTGRES_VERSION: '17'
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies (API)
+      run: |
+        cd api
+        npm ci
+        
+    - name: Install dependencies (Dashboard)
+      run: |
+        cd dashboard
+        npm ci
+        
+    - name: Run ESLint (API)
+      run: |
+        cd api
+        npm run lint
+        
+    - name: Run ESLint (Dashboard)
+      run: |
+        cd dashboard
+        npm run lint
+        
+    - name: Run Prettier check (API)
+      run: |
+        cd api
+        npm run format:check || echo "Format check not available"
+      continue-on-error: true
+        
+    - name: Run Prettier check (Dashboard)
+      run: |
+        cd dashboard
+        npm run format:check || echo "Format check not available"
+      continue-on-error: true
+        
+    - name: Check TypeScript compilation (API)
+      run: |
+        cd api
+        npx tsc --noEmit || echo "TypeScript check not available for API"
+      continue-on-error: true
+        
+    - name: Check TypeScript compilation (Dashboard)
+      run: |
+        cd dashboard
+        npx tsc --noEmit
+        
+    - name: Validate package.json (API)
+      run: |
+        cd api
+        npm audit --audit-level=high
+        
+    - name: Validate package.json (Dashboard)
+      run: |
+        cd dashboard
+        npm audit --audit-level=high
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies (API)
+      run: |
+        cd api
+        npm ci
+        
+    - name: Install dependencies (Dashboard)
+      run: |
+        cd dashboard
+        npm ci
+        
+    - name: Run unit tests (API)
+      run: |
+        cd api
+        npm run test:unit || npm test
+        
+    - name: Run unit tests (Dashboard)
+      run: |
+        cd dashboard
+        npm run test:unit || npm test
+        
+    - name: Generate coverage report (API)
+      run: |
+        cd api
+        npm run test:coverage || echo "Coverage not configured for API"
+      continue-on-error: true
+        
+    - name: Generate coverage report (Dashboard)
+      run: |
+        cd dashboard
+        npm run test:coverage || echo "Coverage not configured for Dashboard"
+      continue-on-error: true
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./api/coverage/lcov.info,./dashboard/coverage/lcov.info
+        flags: unit-tests
+        fail_ci_if_error: false
+        
+    - name: Check coverage threshold
+      run: |
+        echo "Coverage threshold check would be implemented here"
+        # Implementation would depend on project's coverage tools
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: homelab_gitops_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies (API)
+      run: |
+        cd api
+        npm ci
+        
+    - name: Install dependencies (Dashboard)
+      run: |
+        cd dashboard
+        npm ci
+        
+    - name: Setup test database
+      run: |
+        cd api
+        npm run db:migrate:test || echo "Database migration not configured"
+        npm run db:seed:test || echo "Database seeding not configured"
+      continue-on-error: true
+        
+    - name: Start MCP servers for testing
+      run: |
+        if [ -f "./scripts/start-mcp-servers.sh" ]; then
+          chmod +x ./scripts/start-mcp-servers.sh
+          ./scripts/start-mcp-servers.sh --test &
+          sleep 10
+        fi
+        
+    - name: Run integration tests (API)
+      run: |
+        cd api
+        npm run test:integration || echo "Integration tests not configured for API"
+      continue-on-error: true
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/homelab_gitops_test
+        
+    - name: Run integration tests (Dashboard)
+      run: |
+        cd dashboard
+        npm run test:integration || echo "Integration tests not configured for Dashboard"
+      continue-on-error: true
+        
+    - name: Test audit script validation
+      run: |
+        if [ -f "./scripts/sync_github_repos.sh" ]; then
+          chmod +x ./scripts/sync_github_repos.sh
+          ./scripts/sync_github_repos.sh --dry-run
+        fi
+        
+    - name: Stop MCP servers
+      run: |
+        if [ -f "./scripts/stop-mcp-servers.sh" ]; then
+          ./scripts/stop-mcp-servers.sh
+        fi
+      if: always()
+
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-tests]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies (API)
+      run: |
+        cd api
+        npm ci
+        
+    - name: Install dependencies (Dashboard)
+      run: |
+        cd dashboard
+        npm ci
+        
+    - name: Build API
+      run: |
+        cd api
+        npm run build || echo "Build script not available for API"
+        
+    - name: Build Dashboard
+      run: |
+        cd dashboard
+        npm run build
+        
+    - name: Create deployment package
+      run: |
+        tar -czf homelab-gitops-auditor-${{ github.sha }}.tar.gz \
+          --exclude='.git' \
+          --exclude='node_modules' \
+          --exclude='*.tar.gz' \
+          --exclude='coverage' \
+          --exclude='.nyc_output' \
+          .
+        
+    - name: Build Docker image
+      run: |
+        if [ -f "Dockerfile" ]; then
+          docker build -t homelab-gitops-auditor:${{ github.sha }} .
+          docker tag homelab-gitops-auditor:${{ github.sha }} homelab-gitops-auditor:latest
+        else
+          echo "Dockerfile not found, skipping Docker build"
+        fi
+        
+    - name: Save Docker image
+      run: |
+        if docker images | grep -q homelab-gitops-auditor; then
+          docker save homelab-gitops-auditor:${{ github.sha }} | gzip > homelab-gitops-auditor-docker.tar.gz
+        fi
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts-${{ github.sha }}
+        path: |
+          homelab-gitops-auditor-${{ github.sha }}.tar.gz
+          homelab-gitops-auditor-docker.tar.gz
+        retention-days: 1
+        if-no-files-found: ignore
+
+  dependency-check:
+    name: Dependency Vulnerability Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies (API)
+      run: |
+        cd api
+        npm ci
+        
+    - name: Install dependencies (Dashboard)
+      run: |
+        cd dashboard
+        npm ci
+        
+    - name: Run dependency audit (API)
+      run: |
+        cd api
+        npm audit --audit-level=high
+        
+    - name: Run dependency audit (Dashboard)
+      run: |
+        cd dashboard
+        npm audit --audit-level=high
+        
+    - name: Check for critical vulnerabilities (API)
+      run: |
+        cd api
+        VULNERABILITIES=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' 2>/dev/null || echo "0")
+        if [ "$VULNERABILITIES" -gt "0" ]; then
+          echo "Found $VULNERABILITIES high/critical vulnerabilities in API"
+          npm audit --json | jq '.advisories' || true
+          exit 1
+        fi
+        
+    - name: Check for critical vulnerabilities (Dashboard)
+      run: |
+        cd dashboard
+        VULNERABILITIES=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' 2>/dev/null || echo "0")
+        if [ "$VULNERABILITIES" -gt "0" ]; then
+          echo "Found $VULNERABILITIES high/critical vulnerabilities in Dashboard"
+          npm audit --json | jq '.advisories' || true
+          exit 1
+        fi

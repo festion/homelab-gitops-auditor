@@ -1,0 +1,88 @@
+{
+  "version": "2.0.0",
+  "enabled": true,
+  "schedules": [
+    {
+      "id": "daily-full-discovery",
+      "name": "Daily Full Discovery",
+      "cronExpression": "0 3 * * *",
+      "enabled": true,
+      "type": "full",
+      "description": "Complete document discovery across all sources",
+      "resourceAware": true,
+      "maxRetries": 3,
+      "retryDelay": 300000,
+      "timeout": 3600000,
+      "notifications": {
+        "onSuccess": true,
+        "onFailure": true,
+        "onResourceExhaustion": true
+      }
+    },
+    {
+      "id": "hourly-incremental",
+      "name": "Hourly Incremental Discovery",
+      "cronExpression": "0 * * * *",
+      "enabled": false,
+      "type": "incremental",
+      "description": "Incremental discovery for changed files only",
+      "resourceAware": true,
+      "maxRetries": 2,
+      "retryDelay": 120000,
+      "timeout": 1800000,
+      "notifications": {
+        "onSuccess": false,
+        "onFailure": true,
+        "onResourceExhaustion": true
+      }
+    },
+    {
+      "id": "weekly-deep-scan",
+      "name": "Weekly Deep Scan",
+      "cronExpression": "0 2 * * 0",
+      "enabled": true,
+      "type": "deep",
+      "description": "Deep scan with content analysis and cleanup",
+      "resourceAware": true,
+      "maxRetries": 5,
+      "retryDelay": 600000,
+      "timeout": 7200000,
+      "notifications": {
+        "onSuccess": true,
+        "onFailure": true,
+        "onResourceExhaustion": true
+      }
+    }
+  ],
+  "resourceLimits": {
+    "maxCpuPercent": 80,
+    "maxMemoryMB": 1024,
+    "maxLoadAverage": 4,
+    "checkInterval": 30000,
+    "cooldownPeriod": 300000
+  },
+  "logging": {
+    "level": "info",
+    "maxFileSize": "50MB",
+    "maxFiles": 10,
+    "enableConsole": true,
+    "enableFile": true
+  },
+  "notifications": {
+    "enabled": true,
+    "channels": {
+      "console": true,
+      "file": true,
+      "webhook": {
+        "enabled": false,
+        "url": null,
+        "method": "POST"
+      }
+    }
+  },
+  "healthCheck": {
+    "enabled": true,
+    "endpoint": "/health/discovery-cron",
+    "port": 3071
+  }
+}

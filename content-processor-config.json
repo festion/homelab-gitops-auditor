@@ -1,0 +1,68 @@
+{
+  "enhancement": {
+    "enabled": true,
+    "serenaPrompts": {
+      "grammar": "Improve grammar, clarity, and technical writing quality while preserving accuracy. Focus on sentence structure, word choice, and technical terminology consistency.",
+      "structure": "Optimize document structure, headings hierarchy, and organization for better readability. Ensure logical flow and proper information architecture.",
+      "linking": "Add relevant cross-references and internal links where appropriate. Create connections between related concepts and sections.",
+      "summary": "Generate concise summaries for documents over 1000 words"
+    },
+    "aiProvider": "serena-mcp"
+  },
+  "validation": {
+    "enabled": true,
+    "linting": true,
+    "linkChecking": true,
+    "imageValidation": true,
+    "styleGuideEnforcement": true,
+    "spellChecking": true
+  },
+  "qualityThresholds": {
+    "minScore": 7.0,
+    "requireTOC": 1000,
+    "maxProcessingTime": 30000
+  },
+  "processing": {
+    "parallelJobs": 3,
+    "retryAttempts": 2,
+    "backoffMultiplier": 1.5,
+    "timeoutMs": 45000
+  },
+  "output": {
+    "preserveOriginal": true,
+    "generateReport": true,
+    "trackMetrics": true,
+    "createBackups": true
+  },
+  "serenaConfig": {
+    "wrapperScript": "/home/dev/workspace/serena-enhanced-wrapper.sh",
+    "timeout": 30000,
+    "maxRetries": 2,
+    "tempDir": "/tmp/serena-mcp"
+  },
+  "codeLinterConfig": {
+    "wrapperScript": "/home/dev/workspace/code-linter-wrapper.sh",
+    "timeout": 15000,
+    "maxRetries": 2,
+    "tempDir": "/tmp/code-linter-mcp",
+    "validationRules": {
+      "markdown": true,
+      "linkChecking": true,
+      "imageValidation": true,
+      "spellCheck": true,
+      "styleGuide": true
+    }
+  },
+  "wikijs": {
+    "baseUrl": "http://192.168.1.90:3000",
+    "uploadPath": "/api/pages",
+    "defaultTags": ["ai-processed", "documentation"],
+    "autoPublish": false
+  },
+  "logging": {
+    "level": "info",
+    "file": "/tmp/wikijs-processor/logs/processor.log",
+    "maxSize": "10MB",
+    "maxFiles": 5
+  }
+}

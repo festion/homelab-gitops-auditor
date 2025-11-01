@@ -1,0 +1,478 @@
+name: Emergency Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rollback'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+      reason:
+        description: 'Reason for rollback'
+        required: true
+        type: string
+      rollback_to:
+        description: 'Version/commit to rollback to (leave empty for previous version)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  validate-rollback:
+    name: Validate Rollback Request
+    runs-on: ubuntu-latest
+    outputs:
+      rollback_version: ${{ steps.determine-version.outputs.version }}
+      environment: ${{ github.event.inputs.environment }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Determine rollback version
+      id: determine-version
+      run: |
+        if [ -n "${{ github.event.inputs.rollback_to }}" ]; then
+          ROLLBACK_VERSION="${{ github.event.inputs.rollback_to }}"
+          echo "Using specified version: $ROLLBACK_VERSION"
+        else
+          # Get the previous successful deployment
+          ROLLBACK_VERSION=$(git log --oneline --format="%H" -n 10 | head -2 | tail -1)
+          echo "Using previous commit: $ROLLBACK_VERSION"
+        fi
+        
+        # Validate that the version exists
+        if git cat-file -e "$ROLLBACK_VERSION^{commit}"; then
+          echo "version=$ROLLBACK_VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Rollback version validated: $ROLLBACK_VERSION"
+        else
+          echo "❌ Invalid rollback version: $ROLLBACK_VERSION"
+          exit 1
+        fi
+        
+    - name: Validate environment
+      run: |
+        ENV="${{ github.event.inputs.environment }}"
+        if [ "$ENV" != "production" ] && [ "$ENV" != "staging" ]; then
+          echo "❌ Invalid environment: $ENV"
+          exit 1
+        fi
+        echo "✅ Environment validated: $ENV"
+        
+    - name: Log rollback request
+      run: |
+        echo "🚨 ROLLBACK INITIATED"
+        echo "Environment: ${{ github.event.inputs.environment }}"
+        echo "Reason: ${{ github.event.inputs.reason }}"
+        echo "Rollback to: ${{ steps.determine-version.outputs.version }}"
+        echo "Initiated by: ${{ github.actor }}"
+        echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
+
+  production-rollback:
+    name: Production Rollback
+    runs-on: ubuntu-latest
+    needs: validate-rollback
+    if: github.event.inputs.environment == 'production'
+    environment: production
+    
+    steps:
+    - name: Checkout rollback version
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.validate-rollback.outputs.rollback_version }}
+        
+    - name: Create emergency backup
+      if: ${{ secrets.PRODUCTION_SSH_KEY && secrets.PRODUCTION_HOST }}
+      run: |
+        echo "${{ secrets.PRODUCTION_SSH_KEY }}" > prod_key
+        chmod 600 prod_key
+        
+        ssh -i prod_key -o StrictHostKeyChecking=no ${{ secrets.PRODUCTION_USER || 'deploy' }}@${{ secrets.PRODUCTION_HOST }} << 'EOF'
+          cd /opt/homelab-gitops-auditor || cd /home/$USER/homelab-gitops-auditor
+          
+          # Create emergency backup
+          EMERGENCY_BACKUP="emergency-backup-$(date +%Y%m%d-%H%M%S)"
+          
+          # Database backup
+          if command -v docker &> /dev/null && docker-compose ps db &> /dev/null; then
+            docker-compose exec -T db pg_dump -U homelab_user homelab_gitops > "$EMERGENCY_BACKUP.sql"
+          fi
+          
+          # Application backup
+          if [ -d "current" ]; then
+            tar -czf "$EMERGENCY_BACKUP.tar.gz" current/
+          fi
+          
+          echo "Emergency backup created: $EMERGENCY_BACKUP"
+        EOF
+        
+        rm -f prod_key
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: |
+        cd api && npm ci
+        cd ../dashboard && npm ci
+        
+    - name: Build rollback version
+      run: |
+        cd api
+        npm run build || echo "API build not available"
+        cd ../dashboard
+        npm run build
+        
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Build and push rollback image
+      run: |
+        # Build rollback image
+        if [ -f "Dockerfile" ]; then
+          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:rollback-${{ needs.validate-rollback.outputs.rollback_version }} .
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:rollback-${{ needs.validate-rollback.outputs.rollback_version }}
+        fi
+        
+    - name: Execute production rollback
+      if: ${{ secrets.PRODUCTION_SSH_KEY && secrets.PRODUCTION_HOST }}
+      run: |
+        echo "${{ secrets.PRODUCTION_SSH_KEY }}" > prod_key
+        chmod 600 prod_key
+        
+        ssh -i prod_key -o StrictHostKeyChecking=no ${{ secrets.PRODUCTION_USER || 'deploy' }}@${{ secrets.PRODUCTION_HOST }} << 'EOF'
+          set -e
+          cd /opt/homelab-gitops-auditor || cd /home/$USER/homelab-gitops-auditor
+          
+          echo "🚨 Starting production rollback..."
+          
+          if command -v docker &> /dev/null; then
+            echo "Performing Docker-based rollback..."
+            
+            # Stop current services
+            docker-compose down
+            
+            # Pull rollback image
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:rollback-${{ needs.validate-rollback.outputs.rollback_version }} || echo "Rollback image not available, using local backup"
+            
+            # Check if we have a backup directory to rollback to
+            ROLLBACK_DIR=$(ls -td backup-* | head -1 2>/dev/null || echo "")
+            if [ -n "$ROLLBACK_DIR" ] && [ -d "$ROLLBACK_DIR" ]; then
+              echo "Rolling back to backup: $ROLLBACK_DIR"
+              
+              # Switch to backup directory
+              rm -f current
+              ln -sfn "$ROLLBACK_DIR" current
+              cd current
+              
+              # Start services with rollback version
+              docker-compose up -d
+            else
+              echo "No backup directory found, using image rollback"
+              # Update docker-compose to use rollback image
+              sed -i "s|image: .*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:rollback-${{ needs.validate-rollback.outputs.rollback_version }}|g" docker-compose.yml
+              docker-compose up -d
+            fi
+            
+            # Wait for services to start
+            sleep 30
+            
+            # Health check
+            if curl -f http://localhost/api/health; then
+              echo "✅ Rollback successful - health check passed"
+            else
+              echo "❌ Rollback health check failed"
+              exit 1
+            fi
+            
+          else
+            echo "Performing direct rollback..."
+            
+            # Find most recent backup
+            ROLLBACK_DIR=$(ls -td backup-* | head -1 2>/dev/null || echo "")
+            if [ -z "$ROLLBACK_DIR" ]; then
+              echo "❌ No backup directory found for rollback"
+              exit 1
+            fi
+            
+            echo "Rolling back to: $ROLLBACK_DIR"
+            
+            # Stop current processes
+            pkill -f "npm start" || true
+            
+            # Switch to backup
+            rm -f current
+            ln -sfn "$ROLLBACK_DIR" current
+            cd current
+            
+            # Start rollback version
+            cd api
+            if command -v pm2 &> /dev/null; then
+              pm2 stop homelab-gitops-auditor || true
+              pm2 start npm --name "homelab-gitops-auditor" -- start
+              pm2 save
+            else
+              npm start &
+              echo $! > ../homelab-gitops-auditor.pid
+            fi
+            
+            # Health check
+            sleep 15
+            if curl -f http://localhost:3001/api/health; then
+              echo "✅ Rollback successful - health check passed"
+            else
+              echo "❌ Rollback health check failed"
+              exit 1
+            fi
+          fi
+          
+          echo "🎉 Production rollback completed successfully"
+        EOF
+        
+        rm -f prod_key
+        
+    - name: Validate rollback
+      if: ${{ secrets.PRODUCTION_URL }}
+      run: |
+        echo "Validating production rollback..."
+        
+        # Wait for rollback to stabilize
+        sleep 60
+        
+        # Health checks
+        for i in {1..5}; do
+          if curl -f "${{ secrets.PRODUCTION_URL }}/api/health"; then
+            echo "✅ Health check $i/5 passed"
+            break
+          else
+            echo "❌ Health check $i/5 failed"
+            if [ $i -eq 5 ]; then
+              echo "❌ Rollback validation failed after 5 attempts"
+              exit 1
+            fi
+            sleep 30
+          fi
+        done
+        
+        # Basic functionality test
+        curl -f "${{ secrets.PRODUCTION_URL }}" || echo "Frontend test failed"
+        curl -f "${{ secrets.PRODUCTION_URL }}/api/deployments/status" || echo "API functionality test failed"
+        
+    - name: Record rollback
+      if: ${{ secrets.PRODUCTION_URL }}
+      run: |
+        # Record rollback in deployment history
+        curl -X POST "${{ secrets.PRODUCTION_URL }}/api/deployments/record" \
+          -H "Authorization: Bearer ${{ secrets.DEPLOYMENT_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "version": "${{ needs.validate-rollback.outputs.rollback_version }}",
+            "environment": "production",
+            "status": "rollback",
+            "deployedBy": "${{ github.actor }}",
+            "deployedAt": "'$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)'",
+            "reason": "${{ github.event.inputs.reason }}",
+            "rollback": true
+          }' || echo "Rollback recording failed"
+
+  staging-rollback:
+    name: Staging Rollback
+    runs-on: ubuntu-latest
+    needs: validate-rollback
+    if: github.event.inputs.environment == 'staging'
+    environment: staging
+    
+    steps:
+    - name: Checkout rollback version
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.validate-rollback.outputs.rollback_version }}
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies and build
+      run: |
+        cd api && npm ci
+        cd ../dashboard && npm ci && npm run build
+        
+    - name: Execute staging rollback
+      if: ${{ secrets.STAGING_SSH_KEY && secrets.STAGING_HOST }}
+      run: |
+        echo "${{ secrets.STAGING_SSH_KEY }}" > staging_key
+        chmod 600 staging_key
+        
+        ssh -i staging_key -o StrictHostKeyChecking=no ${{ secrets.STAGING_USER || 'deploy' }}@${{ secrets.STAGING_HOST }} << 'EOF'
+          cd /opt/homelab-gitops-auditor || cd /home/$USER/homelab-gitops-auditor
+          
+          echo "🚨 Starting staging rollback..."
+          
+          # Find rollback target
+          ROLLBACK_DIR=$(ls -td staging-* backup-* | head -1 2>/dev/null || echo "")
+          if [ -z "$ROLLBACK_DIR" ]; then
+            echo "❌ No staging backup found"
+            exit 1
+          fi
+          
+          echo "Rolling back to: $ROLLBACK_DIR"
+          
+          # Stop current services
+          docker-compose -f docker-compose.staging.yml down || pkill -f "npm start" || true
+          
+          # Switch to rollback version
+          rm -f current
+          ln -sfn "$ROLLBACK_DIR" current
+          cd current
+          
+          # Start rollback version
+          if [ -f "docker-compose.staging.yml" ]; then
+            docker-compose -f docker-compose.staging.yml up -d
+            sleep 30
+            curl -f http://localhost:3072/api/health || exit 1
+          else
+            cd api && npm start &
+            sleep 15
+            curl -f http://localhost:3001/api/health || exit 1
+          fi
+          
+          echo "✅ Staging rollback completed"
+        EOF
+        
+        rm -f staging_key
+
+  post-rollback:
+    name: Post-Rollback Actions
+    runs-on: ubuntu-latest
+    needs: [validate-rollback, production-rollback, staging-rollback]
+    if: always() && (needs.production-rollback.result == 'success' || needs.staging-rollback.result == 'success')
+    
+    steps:
+    - name: Create rollback report
+      run: |
+        cat > ROLLBACK_REPORT.md << EOF
+        # Emergency Rollback Report
+        
+        ## Rollback Details
+        - **Environment:** ${{ github.event.inputs.environment }}
+        - **Reason:** ${{ github.event.inputs.reason }}
+        - **Rollback Version:** ${{ needs.validate-rollback.outputs.rollback_version }}
+        - **Initiated By:** ${{ github.actor }}
+        - **Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        - **Status:** ${{ job.status }}
+        
+        ## Actions Taken
+        1. Emergency backup created
+        2. Services stopped gracefully
+        3. Rollback version deployed
+        4. Health checks validated
+        5. Deployment recorded in history
+        
+        ## Verification Steps
+        - [ ] API health check passed
+        - [ ] Frontend accessibility verified
+        - [ ] Database integrity confirmed
+        - [ ] Critical functionality tested
+        
+        ## Next Steps
+        1. Monitor system stability for 1 hour
+        2. Investigate root cause of issues
+        3. Plan forward fix or additional rollback
+        4. Update incident documentation
+        5. Review rollback procedures
+        
+        ## URLs
+        - Production: ${{ secrets.PRODUCTION_URL }}
+        - Staging: ${{ secrets.STAGING_URL }}
+        
+        ## Emergency Contacts
+        - Ops Team: [Contact Information]
+        - DevOps Lead: [Contact Information]
+        EOF
+        
+    - name: Upload rollback report
+      uses: actions/upload-artifact@v4
+      with:
+        name: rollback-report-${{ github.event.inputs.environment }}-${{ github.run_id }}
+        path: ROLLBACK_REPORT.md
+        retention-days: 365
+        
+    - name: Notify rollback completion
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#incidents'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        message: |
+          🚨 EMERGENCY ROLLBACK COMPLETED
+          
+          Environment: ${{ github.event.inputs.environment }}
+          Reason: ${{ github.event.inputs.reason }}
+          Rollback Version: ${{ needs.validate-rollback.outputs.rollback_version }}
+          Status: ${{ job.status }}
+          Initiated by: ${{ github.actor }}
+          
+          Please verify system stability and investigate root cause.
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+        
+    - name: Create incident issue
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const issue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `🚨 Emergency Rollback: ${{ github.event.inputs.environment }}`,
+            body: `
+          ## Incident Details
+          - **Environment:** ${{ github.event.inputs.environment }}
+          - **Reason:** ${{ github.event.inputs.reason }}
+          - **Rollback Version:** ${{ needs.validate-rollback.outputs.rollback_version }}
+          - **Initiated By:** ${{ github.actor }}
+          - **Timestamp:** ${new Date().toISOString()}
+          
+          ## Status
+          Rollback has been executed. System should be stable on previous version.
+          
+          ## Actions Required
+          - [ ] Verify system stability
+          - [ ] Investigate root cause
+          - [ ] Plan forward fix
+          - [ ] Update incident documentation
+          - [ ] Post-mortem scheduling
+          
+          ## Links
+          - [Rollback Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Rollback Report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+          `,
+            labels: ['incident', 'rollback', '${{ github.event.inputs.environment }}']
+          });
+          
+          console.log(`Created incident issue #${issue.data.number}`);
+          
+          // Pin the issue
+          await github.rest.issues.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: issue.data.number,
+            state: 'open'
+          });

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import { PipelineStatus } from '../components/pipeline/PipelineStatus';
 
 // Development configuration
 const API_BASE_URL =
@@ -166,7 +167,12 @@ const AuditPage = () => {
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Main content grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+        {/* Repository audit section (left side) */}
+        <div className="xl:col-span-2">
+          <h2 className="text-xl font-semibold mb-4">Repository Status</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {data.repos.map((repoItem, i) => (
           <div
             key={i}
@@ -233,6 +239,13 @@ const AuditPage = () => {
             )}
           </div>
         ))}
+          </div>
+        </div>
+
+        {/* Pipeline status section (right side) */}
+        <div className="xl:col-span-1">
+          <PipelineStatus />
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,410 @@
+name: Home Assistant Config Validation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM
+
+env:
+  HA_VERSION: "{{HA_VERSION|2024.1}}"
+  PYTHON_VERSION: "{{PYTHON_VERSION|3.11}}"
+
+jobs:
+  validate:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout configuration
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install Home Assistant
+      run: |
+        pip install homeassistant==${{ env.HA_VERSION }}
+        pip install yamllint
+    
+    - name: Create secrets template
+      run: |
+        if [ ! -f secrets.yaml ] && [ -f secrets.yaml.template ]; then
+          cp secrets.yaml.template secrets.yaml
+        fi
+        
+        # Replace template variables with dummy values for validation
+        if [ -f secrets.yaml ]; then
+          sed -i 's/{{[^}]*}}/dummy_value/g' secrets.yaml
+        fi
+    
+    - name: YAML Lint
+      run: |
+        if [ -f .yamllint ]; then
+          yamllint -c .yamllint configuration.yaml
+          find . -name "*.yaml" -o -name "*.yml" | grep -v node_modules | xargs yamllint -c .yamllint
+        else
+          yamllint configuration.yaml
+          find . -name "*.yaml" -o -name "*.yml" | grep -v node_modules | xargs yamllint
+        fi
+    
+    - name: Home Assistant Config Check
+      run: |
+        hass --config . --script check_config
+    
+    - name: Validate Automations
+      run: |
+        python3 << 'EOF'
+        import yaml
+        import os
+        import sys
+        
+        errors = []
+        
+        def validate_yaml_file(file_path):
+            try:
+                with open(file_path, 'r') as f:
+                    yaml.safe_load(f)
+                print(f'✅ {file_path} is valid')
+                return True
+            except yaml.YAMLError as e:
+                print(f'❌ {file_path} has errors: {e}')
+                errors.append(f'{file_path}: {e}')
+                return False
+        
+        # Check all YAML files
+        for root, dirs, files in os.walk('.'):
+            # Skip hidden directories and common non-config directories
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['node_modules', '__pycache__']]
+            
+            for file in files:
+                if file.endswith(('.yaml', '.yml')):
+                    file_path = os.path.join(root, file)
+                    validate_yaml_file(file_path)
+        
+        if errors:
+            print("\n❌ YAML validation failed with errors:")
+            for error in errors:
+                print(f"  - {error}")
+            sys.exit(1)
+        else:
+            print("\n✅ All YAML files are valid")
+        EOF
+    
+    - name: Check Entity IDs
+      run: |
+        python3 << 'EOF'
+        import yaml
+        import re
+        import os
+        
+        # Common entity ID patterns
+        entity_pattern = re.compile(r'\b[a-z_]+\.[a-z0-9_]+\b')
+        
+        def extract_entities(data, file_path=""):
+            entities = []
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    if key in ['entity_id', 'entities'] and isinstance(value, (str, list)):
+                        if isinstance(value, str):
+                            entities.append(value)
+                        else:
+                            entities.extend(value)
+                    else:
+                        entities.extend(extract_entities(value, file_path))
+            elif isinstance(data, list):
+                for item in data:
+                    entities.extend(extract_entities(item, file_path))
+            elif isinstance(data, str):
+                # Find entity IDs in string values
+                matches = entity_pattern.findall(data)
+                entities.extend(matches)
+            
+            return entities
+        
+        all_entities = set()
+        
+        # Extract entities from all configuration files
+        for root, dirs, files in os.walk('.'):
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            
+            for file in files:
+                if file.endswith(('.yaml', '.yml')):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r') as f:
+                            data = yaml.safe_load(f)
+                            entities = extract_entities(data, file_path)
+                            all_entities.update(entities)
+                    except Exception as e:
+                        print(f"Warning: Could not process {file_path}: {e}")
+        
+        print(f"Found {len(all_entities)} unique entity references")
+        
+        # Check for common naming issues
+        issues = []
+        for entity in all_entities:
+            if not re.match(r'^[a-z_]+\.[a-z0-9_]+$', entity):
+                continue
+                
+            # Check for common issues
+            if '__' in entity:
+                issues.append(f"Double underscore in entity: {entity}")
+            if entity.endswith('_'):
+                issues.append(f"Entity ends with underscore: {entity}")
+            if not entity.replace('_', '').replace('.', '').isalnum():
+                issues.append(f"Entity contains invalid characters: {entity}")
+        
+        if issues:
+            print("\n⚠️  Entity naming issues found:")
+            for issue in issues:
+                print(f"  - {issue}")
+        else:
+            print("\n✅ No entity naming issues found")
+        EOF
+
+  security-check:
+    name: Security Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Check for exposed secrets
+      run: |
+        echo "🔍 Checking for exposed secrets..."
+        
+        # Check for hardcoded passwords
+        if grep -r "password.*:" . --include="*.yaml" --include="*.yml" | grep -v "!secret" | grep -v "password_template" | grep -v "password_field"; then
+          echo "❌ Found hardcoded passwords!"
+          exit 1
+        fi
+        
+        # Check for hardcoded tokens
+        if grep -r "token.*:" . --include="*.yaml" --include="*.yml" | grep -v "!secret" | grep -v "token_template"; then
+          echo "❌ Found hardcoded tokens!"
+          exit 1
+        fi
+        
+        # Check for hardcoded API keys
+        if grep -r "api_key.*:" . --include="*.yaml" --include="*.yml" | grep -v "!secret"; then
+          echo "❌ Found hardcoded API keys!"
+          exit 1
+        fi
+        
+        # Check for IP addresses that might be internal
+        if grep -rE "192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\." . --include="*.yaml" --include="*.yml" | grep -v "# Internal IP"; then
+          echo "⚠️  Found internal IP addresses. Ensure these are intentional."
+        fi
+        
+        echo "✅ No exposed secrets found"
+    
+    - name: Validate SSL configuration
+      run: |
+        if [ -f "configuration.yaml" ]; then
+          if grep -q "ssl_certificate" configuration.yaml; then
+            echo "✅ SSL configuration found"
+          else
+            echo "⚠️  Consider enabling SSL for production"
+          fi
+        fi
+    
+    - name: Check for deprecated features
+      run: |
+        python3 << 'EOF'
+        import yaml
+        import os
+        
+        deprecated_features = [
+            'zone.home',  # Replaced with zone.person
+            'device_tracker.see',  # Deprecated device tracker method
+            'automation.old_format',  # Old automation format
+        ]
+        
+        deprecated_integrations = [
+            'rfxtrx',  # Deprecated integration
+            'mysensors',  # Deprecated integration
+        ]
+        
+        warnings = []
+        
+        for root, dirs, files in os.walk('.'):
+            for file in files:
+                if file.endswith(('.yaml', '.yml')):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r') as f:
+                            content = f.read()
+                            
+                            # Check for deprecated features
+                            for feature in deprecated_features:
+                                if feature in content:
+                                    warnings.append(f"{file_path}: Uses deprecated feature '{feature}'")
+                            
+                            # Check for deprecated integrations
+                            for integration in deprecated_integrations:
+                                if f"platform: {integration}" in content:
+                                    warnings.append(f"{file_path}: Uses deprecated integration '{integration}'")
+                    
+                    except Exception as e:
+                        continue
+        
+        if warnings:
+            print("⚠️  Deprecated features found:")
+            for warning in warnings:
+                print(f"  - {warning}")
+        else:
+            print("✅ No deprecated features found")
+        EOF
+
+  backup-config:
+    name: Backup Configuration
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Create backup archive
+      run: |
+        # Create backup with timestamp
+        BACKUP_NAME="ha-config-backup-$(date +%Y%m%d-%H%M%S)"
+        
+        tar -czf "${BACKUP_NAME}.tar.gz" \
+          --exclude='.git' \
+          --exclude='*.log' \
+          --exclude='*.db' \
+          --exclude='*.db-*' \
+          --exclude='home-assistant.log*' \
+          --exclude='*.pid' \
+          --exclude='__pycache__' \
+          --exclude='*.pyc' \
+          .
+        
+        echo "Created backup: ${BACKUP_NAME}.tar.gz"
+        ls -lah "${BACKUP_NAME}.tar.gz"
+    
+    - name: Upload backup
+      uses: actions/upload-artifact@v4
+      with:
+        name: ha-config-backup
+        path: "*.tar.gz"
+        retention-days: 30
+
+  deploy:
+    name: Deploy to Home Assistant
+    runs-on: ubuntu-latest
+    needs: [validate, security-check]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.HA_HOST }}
+        username: ${{ secrets.HA_USERNAME }}
+        key: ${{ secrets.HA_SSH_KEY }}
+        port: ${{ secrets.HA_SSH_PORT || 22 }}
+        script: |
+          set -e
+          
+          echo "🚀 Starting Home Assistant configuration deployment..."
+          
+          # Navigate to config directory
+          cd /config || cd /home/homeassistant/.homeassistant
+          
+          # Create backup before deployment
+          echo "📦 Creating backup..."
+          BACKUP_DIR="/config/backups/$(date +%Y%m%d-%H%M%S)"
+          mkdir -p "$BACKUP_DIR"
+          cp -r . "$BACKUP_DIR/" || echo "Backup creation failed, continuing..."
+          
+          # Pull latest configuration
+          echo "📥 Pulling latest configuration..."
+          git pull origin main
+          
+          # Check configuration before restart
+          echo "🔍 Checking configuration..."
+          ha core check || {
+            echo "❌ Configuration check failed, rolling back..."
+            git reset --hard HEAD~1
+            exit 1
+          }
+          
+          # Restart Home Assistant if config is valid
+          echo "🔄 Restarting Home Assistant..."
+          ha core restart
+          
+          # Wait for restart and verify
+          echo "⏳ Waiting for Home Assistant to start..."
+          sleep 30
+          
+          # Verify Home Assistant is running
+          if ha core info | grep -q "running"; then
+            echo "✅ Home Assistant restarted successfully"
+          else
+            echo "❌ Home Assistant failed to start properly"
+            exit 1
+          fi
+    
+    - name: Notify deployment status
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        text: |
+          Home Assistant deployment ${{ job.status }}
+          Repository: ${{ github.repository }}
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  notify-issues:
+    name: Notify Configuration Issues
+    runs-on: ubuntu-latest
+    needs: [validate, security-check]
+    if: failure()
+    
+    steps:
+    - name: Create issue for failed validation
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const title = `Home Assistant Configuration Validation Failed - ${new Date().toISOString().split('T')[0]}`;
+          const body = `
+          ## Configuration Validation Failed
+          
+          The Home Assistant configuration validation failed during the CI process.
+          
+          **Details:**
+          - Branch: ${{ github.ref_name }}
+          - Commit: ${{ github.sha }}
+          - Workflow: ${{ github.workflow }}
+          - Run: ${{ github.run_id }}
+          
+          **Action Required:**
+          1. Check the workflow logs for specific errors
+          2. Fix the configuration issues
+          3. Test locally before pushing
+          
+          [View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          `;
+          
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['bug', 'home-assistant', 'configuration']
+          });

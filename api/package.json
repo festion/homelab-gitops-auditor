@@ -1,22 +1,45 @@
 {
   "dependencies": {
-    "express": "^4.18.2",
-    "uuid": "^9.0.0",
-    "ws": "^8.16.0",
+    "@octokit/rest": "^22.0.0",
+    "@octokit/webhooks": "^14.1.0",
+    "ajv": "^8.12.0",
+    "axios": "^1.10.0",
+    "bcrypt": "^5.1.1",
     "chokidar": "^3.5.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.2.1",
+    "express-ws": "^5.0.2",
+    "helmet": "^7.1.0",
+    "js-yaml": "^4.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.8.1",
     "sqlite3": "^5.1.6",
-    "express-ws": "^5.0.2"
+    "uuid": "^9.0.0",
+    "validator": "^13.11.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.1",
     "jest": "^29.7.0",
-    "nodemon": "^3.0.2"
+    "jest-watch-typeahead": "^2.2.2",
+    "nodemon": "^3.0.2",
+    "socket.io-client": "^4.8.1",
+    "supertest": "^6.3.4"
   },
   "scripts": {
     "start": "node server.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
     "dev": "nodemon server.js",
-    "lint": "echo 'No linting configured for API'"
+    "test": "jest --config=jest.config.js",
+    "test:watch": "jest --watch --config=jest.config.js",
+    "test:coverage": "jest --coverage --config=jest.config.js",
+    "test:unit": "jest --selectProjects=\"Unit Tests\" --config=jest.config.js",
+    "test:integration": "jest --selectProjects=\"Integration Tests\" --config=jest.config.js",
+    "test:websocket": "jest --selectProjects=\"WebSocket Tests\" --config=jest.config.js",
+    "test:performance": "jest --selectProjects=\"Performance Tests\" --config=jest.config.js",
+    "test:ci": "jest --coverage --ci --watchAll=false --config=jest.config.js",
+    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --config=jest.config.js"
   },
   "name": "api",
   "version": "1.0.3",

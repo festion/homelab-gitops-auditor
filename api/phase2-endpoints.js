@@ -7,6 +7,15 @@ const fs = require('fs').promises;
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
+// Import authentication middleware
+const { 
+  authenticate, 
+  authenticateOptional, 
+  authorize, 
+  requireRole 
+} = require('./middleware/auth');
+const { Permission } = require('./models/user');
+
 // Create Phase 2 router
 const phase2Router = express.Router();
 
@@ -177,7 +186,11 @@ phase2Router.get('/templates/status', (req, res) => {
 });
 
 // Apply template to repository
-phase2Router.post('/templates/apply', validateRequest(['templateName', 'repositoryPath']), async (req, res) => {
+phase2Router.post('/templates/apply', 
+  authenticate, 
+  authorize(Permission.RESOURCES.TEMPLATES, Permission.ACTIONS.APPLY),
+  validateRequest(['templateName', 'repositoryPath']), 
+  async (req, res) => {
   try {
     const { templateName, repositoryPath, dryRun = true, options = {} } = req.body;
     
@@ -1660,6 +1673,179 @@ phase2Router.put('/quality/thresholds', validateRequest(['gateId']), (req, res) 
 });
 
 // ===============================
+// Pipeline Status API Endpoints
+// ===============================
+
+// Import pipeline service
+const PipelineService = require('./services/pipeline/pipelineService');
+let pipelineService = null;
+
+// Initialize pipeline service with MCP integration
+function initializePipelineService(app) {
+  const ConfigLoader = require('./config-loader');
+  const config = new ConfigLoader();
+  
+  // Get GitHub MCP instance from app context if available
+  const githubMCP = app.locals?.githubMCP || null;
+  
+  pipelineService = new PipelineService(githubMCP, config);
+  
+  // Set up pipeline event listeners for WebSocket
+  pipelineService.on('pipeline:triggered', (data) => {
+    // Emit WebSocket event if available
+    const phase2WS = app.locals?.phase2WS;
+    if (phase2WS) {
+      phase2WS.emit('pipelines', 'pipeline.triggered', data);
+    }
+  });
+  
+  return pipelineService;
+}
+
+// GET /api/v2/pipelines/status - Get current pipeline status for all repositories
+phase2Router.get('/pipelines/status', async (req, res) => {
+  try {
+    if (!pipelineService) {
+      pipelineService = initializePipelineService(req.app);
+    }
+    
+    const { repo, branch, status, limit } = req.query;
+    const options = {
+      repo,
+      branch,
+      status,
+      limit: limit ? parseInt(limit) : undefined
+    };
+    
+    const result = await pipelineService.getPipelineStatus(options);
+    
+    // Emit WebSocket event for real-time updates
+    emitWSEvent(req, 'pipelines', 'status.requested', {
+      options,
+      resultCount: result.pipelines.length
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting pipeline status:', error);
+    res.status(500).json({ 
+      error: 'Failed to get pipeline status', 
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/v2/pipelines/history/:repo - Get pipeline run history for a specific repository
+phase2Router.get('/pipelines/history/:repo', async (req, res) => {
+  try {
+    if (!pipelineService) {
+      pipelineService = initializePipelineService(req.app);
+    }
+    
+    const repository = req.params.repo;
+    const { page, per_page, workflow_id, branch } = req.query;
+    
+    const options = {
+      page: page ? parseInt(page) : 1,
+      per_page: per_page ? parseInt(per_page) : 30,
+      workflow_id,
+      branch
+    };
+    
+    const result = await pipelineService.getPipelineHistory(repository, options);
+    
+    // Emit WebSocket event
+    emitWSEvent(req, 'pipelines', 'history.requested', {
+      repository,
+      options,
+      resultCount: result.runs.length
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error(`Error getting pipeline history for ${req.params.repo}:`, error);
+    res.status(500).json({ 
+      error: 'Failed to get pipeline history', 
+      details: error.message 
+    });
+  }
+});
+
+// POST /api/v2/pipelines/trigger - Manually trigger a pipeline run
+phase2Router.post('/pipelines/trigger', 
+  authenticate, 
+  authorize(Permission.RESOURCES.PIPELINES, Permission.ACTIONS.TRIGGER),
+  validateRequest(['repository', 'workflow']), 
+  async (req, res) => {
+  try {
+    if (!pipelineService) {
+      pipelineService = initializePipelineService(req.app);
+    }
+    
+    const { repository, workflow, branch, inputs } = req.body;
+    
+    const request = {
+      repository,
+      workflow,
+      branch: branch || 'main',
+      inputs: inputs || {}
+    };
+    
+    const result = await pipelineService.triggerPipeline(request);
+    
+    // Emit WebSocket event
+    emitWSEvent(req, 'pipelines', 'pipeline.triggered', {
+      repository,
+      workflow,
+      branch: request.branch,
+      inputs: request.inputs,
+      success: result.success
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error triggering pipeline:', error);
+    res.status(500).json({ 
+      error: 'Failed to trigger pipeline', 
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/v2/pipelines/metrics - Get pipeline metrics and analytics
+phase2Router.get('/pipelines/metrics', async (req, res) => {
+  try {
+    if (!pipelineService) {
+      pipelineService = initializePipelineService(req.app);
+    }
+    
+    const { repository, timeRange, branch } = req.query;
+    
+    const options = {
+      repository,
+      timeRange: timeRange || '30d',
+      branch
+    };
+    
+    const result = await pipelineService.getPipelineMetrics(options);
+    
+    // Emit WebSocket event
+    emitWSEvent(req, 'pipelines', 'metrics.requested', {
+      options,
+      repositoryCount: Object.keys(result.metrics).length
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting pipeline metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to get pipeline metrics', 
+      details: error.message 
+    });
+  }
+});
+
+// ===============================
 // System Status Endpoint
 // ===============================
 
@@ -1718,6 +1904,322 @@ phase2Router.get('/status', (req, res) => {
 });
 
 // ===============================
+// Template Compliance API Endpoints
+// ===============================
+
+// Import compliance service
+const ComplianceService = require('./services/compliance/complianceService');
+let complianceService = null;
+
+// Initialize compliance service
+function initializeComplianceService(app) {
+  const ConfigLoader = require('./config-loader');
+  const config = new ConfigLoader();
+  
+  complianceService = new ComplianceService(config, {
+    projectRoot: process.cwd(),
+    verbose: process.env.NODE_ENV === 'development'
+  });
+  
+  // Set up compliance event listeners for WebSocket
+  complianceService.on('compliance:checked', (data) => {
+    emitWSEvent(app.locals?.phase2WS?.req || {}, 'compliance', 'compliance.checked', data);
+  });
+  
+  complianceService.on('compliance:job-started', (data) => {
+    emitWSEvent(app.locals?.phase2WS?.req || {}, 'compliance', 'compliance.job-started', data);
+  });
+  
+  complianceService.on('compliance:job-completed', (data) => {
+    emitWSEvent(app.locals?.phase2WS?.req || {}, 'compliance', 'compliance.job-completed', data);
+  });
+  
+  complianceService.on('compliance:application-completed', (data) => {
+    emitWSEvent(app.locals?.phase2WS?.req || {}, 'compliance', 'compliance.application-completed', data);
+  });
+  
+  return complianceService;
+}
+
+// ===============================
+// Pipeline Orchestration Endpoints
+// ===============================
+
+// Initialize orchestration service
+const { createOrchestrationService, getOrchestrationService } = require('./services/orchestrator');
+let orchestrationService = null;
+
+function initializeOrchestrationService(app) {
+  if (!orchestrationService) {
+    const services = {
+      websocket: app.locals?.phase2WS,
+      github: app.locals?.githubMCP,
+      metrics: app.locals?.metricsService
+    };
+    
+    orchestrationService = createOrchestrationService(services);
+    
+    // Initialize the service
+    orchestrationService.initialize().catch(error => {
+      console.error('Failed to initialize orchestration service:', error);
+    });
+  }
+  
+  return orchestrationService;
+}
+
+// Add orchestration routes
+const orchestrationRouter = require('./routes/orchestration');
+
+// Mount orchestration router with middleware
+phase2Router.use('/orchestration', (req, res, next) => {
+  // Ensure orchestration service is available
+  if (!req.orchestrator) {
+    req.orchestrator = initializeOrchestrationService(req.app);
+  }
+  
+  // Pass services through request
+  req.services = {
+    websocket: req.app.locals?.phase2WS,
+    github: req.app.locals?.githubMCP,
+    metrics: req.app.locals?.metricsService
+  };
+  
+  next();
+}, orchestrationRouter);
+
+// Legacy orchestration endpoints for backward compatibility
+phase2Router.get('/orchestration-status', async (req, res) => {
+  try {
+    const orchestrator = initializeOrchestrationService(req.app);
+    const status = orchestrator.getSystemStatus();
+    
+    res.json({
+      ...status,
+      orchestrationService: 'operational',
+      version: '1.0.0'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get orchestration status', details: error.message });
+  }
+});
+
+phase2Router.get('/orchestration-metrics', async (req, res) => {
+  try {
+    const orchestrator = initializeOrchestrationService(req.app);
+    const metrics = orchestrator.getMetrics(req.query.timeRange || '1h');
+    
+    res.json(metrics);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get orchestration metrics', details: error.message });
+  }
+});
+
+// GET /api/v2/compliance/status - Get compliance status for all repositories
+phase2Router.get('/compliance/status', async (req, res) => {
+  try {
+    if (!complianceService) {
+      complianceService = initializeComplianceService(req.app);
+    }
+    
+    const { repository, template, includeDetails } = req.query;
+    const options = {
+      repository,
+      template,
+      includeDetails: includeDetails === 'true'
+    };
+    
+    const result = await complianceService.getComplianceStatus(options);
+    
+    // Emit WebSocket event
+    emitWSEvent(req, 'compliance', 'status.requested', {
+      options,
+      resultCount: result.repositories.length,
+      complianceRate: result.summary.complianceRate
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting compliance status:', error);
+    res.status(500).json({ 
+      error: 'Failed to get compliance status', 
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/v2/compliance/repository/:repo - Detailed compliance report for specific repository
+phase2Router.get('/compliance/repository/:repo', async (req, res) => {
+  try {
+    if (!complianceService) {
+      complianceService = initializeComplianceService(req.app);
+    }
+    
+    const repository = req.params.repo;
+    const { templates, includeHistory } = req.query;
+    
+    const options = {
+      templates: templates ? templates.split(',') : undefined,
+      includeHistory: includeHistory === 'true'
+    };
+    
+    const result = await complianceService.getRepositoryCompliance(repository, options);
+    
+    // Emit WebSocket event
+    emitWSEvent(req, 'compliance', 'repository.checked', {
+      repository,
+      compliant: result.compliant,
+      score: result.score,
+      issueCount: result.issues.length
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error(`Error getting repository compliance for ${req.params.repo}:`, error);
+    res.status(500).json({ 
+      error: 'Failed to get repository compliance', 
+      details: error.message 
+    });
+  }
+});
+
+// POST /api/v2/compliance/check - Trigger compliance check for repositories
+phase2Router.post('/compliance/check', 
+  authenticate, 
+  authorize(Permission.RESOURCES.TEMPLATES, Permission.ACTIONS.APPLY),
+  async (req, res) => {
+  try {
+    if (!complianceService) {
+      complianceService = initializeComplianceService(req.app);
+    }
+    
+    const { repositories = [], templates = [], priority = 'normal' } = req.body;
+    
+    const result = await complianceService.triggerComplianceCheck({
+      repositories,
+      templates,
+      priority
+    });
+    
+    // Emit WebSocket event
+    emitWSEvent(req, 'compliance', 'check.triggered', {
+      jobId: result.jobId,
+      repositories: result.repositories,
+      templates: result.templates,
+      estimatedDuration: result.estimatedDuration
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error triggering compliance check:', error);
+    res.status(500).json({ 
+      error: 'Failed to trigger compliance check', 
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/v2/compliance/templates - List available templates and their requirements
+phase2Router.get('/compliance/templates', async (req, res) => {
+  try {
+    if (!complianceService) {
+      complianceService = initializeComplianceService(req.app);
+    }
+    
+    const result = await complianceService.getAvailableTemplates();
+    
+    // Emit WebSocket event
+    emitWSEvent(req, 'compliance', 'templates.requested', {
+      templateCount: result.templates.length
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting available templates:', error);
+    res.status(500).json({ 
+      error: 'Failed to get templates', 
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/v2/compliance/history - Template application history
+phase2Router.get('/compliance/history', async (req, res) => {
+  try {
+    if (!complianceService) {
+      complianceService = initializeComplianceService(req.app);
+    }
+    
+    const { repository, template, limit, offset } = req.query;
+    
+    const options = {
+      repository,
+      template,
+      limit: limit ? parseInt(limit) : undefined,
+      offset: offset ? parseInt(offset) : undefined
+    };
+    
+    const result = await complianceService.getApplicationHistory(options);
+    
+    // Emit WebSocket event
+    emitWSEvent(req, 'compliance', 'history.requested', {
+      options,
+      resultCount: result.applications.length,
+      totalApplications: result.pagination.total
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting application history:', error);
+    res.status(500).json({ 
+      error: 'Failed to get application history', 
+      details: error.message 
+    });
+  }
+});
+
+// POST /api/v2/compliance/apply - Apply templates to non-compliant repositories
+phase2Router.post('/compliance/apply', validateRequest(['repository', 'templates']), async (req, res) => {
+  try {
+    if (!complianceService) {
+      complianceService = initializeComplianceService(req.app);
+    }
+    
+    const { repository, templates, createPR = false, dryRun = true } = req.body;
+    
+    if (!Array.isArray(templates) || templates.length === 0) {
+      return res.status(400).json({ 
+        error: 'Templates must be a non-empty array' 
+      });
+    }
+    
+    const result = await complianceService.applyTemplate({
+      repository,
+      templates,
+      createPR,
+      dryRun
+    });
+    
+    // Emit WebSocket event
+    emitWSEvent(req, 'compliance', 'template.applied', {
+      repository,
+      templates,
+      dryRun,
+      success: result.results.every(r => r.success),
+      resultCount: result.results.length
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error applying templates:', error);
+    res.status(500).json({ 
+      error: 'Failed to apply templates', 
+      details: error.message 
+    });
+  }
+});
+
+// ===============================
 // WebSocket Support Endpoints
 // ===============================
 
@@ -1732,11 +2234,205 @@ phase2Router.get('/websocket/info', (req, res) => {
       'pipelines',
       'dependencies',
       'quality',
-      'operations'
+      'operations',
+      'compliance'
     ],
     reconnectInterval: 5000,
     heartbeatInterval: 30000
   });
+});
+
+// ===== WEBHOOK MANAGEMENT ENDPOINTS =====
+
+// Get webhook status and statistics
+phase2Router.get('/webhooks/status', (req, res) => {
+  try {
+    const webhookHandler = req.app.locals.webhookHandler;
+    
+    if (!webhookHandler) {
+      return res.status(503).json({ 
+        error: 'Webhook handler not initialized',
+        status: 'unavailable'
+      });
+    }
+
+    const stats = webhookHandler.getStats();
+    const queueInfo = webhookHandler.eventQueue.getQueueInfo();
+    
+    res.json({
+      status: 'active',
+      endpoint: '/api/v2/webhooks/github',
+      security: {
+        hasSecret: stats.secret,
+        signatureVerification: stats.secret ? 'enabled' : 'disabled'
+      },
+      queue: {
+        ...stats.queue,
+        items: queueInfo.items.slice(0, 10), // Show only first 10 items
+        processing: queueInfo.processing
+      },
+      handlers: stats.eventHandlers,
+      listeners: stats.listenerCount
+    });
+  } catch (error) {
+    console.error('Error getting webhook status:', error);
+    res.status(500).json({ error: 'Failed to get webhook status' });
+  }
+});
+
+// Get recent webhook events
+phase2Router.get('/webhooks/events', (req, res) => {
+  try {
+    const { limit = 50, type, repository } = req.query;
+    const webhookHandler = req.app.locals.webhookHandler;
+    
+    if (!webhookHandler) {
+      return res.status(503).json({ 
+        error: 'Webhook handler not initialized' 
+      });
+    }
+
+    const queueInfo = webhookHandler.eventQueue.getQueueInfo();
+    let events = queueInfo.items;
+
+    // Filter by type if specified
+    if (type) {
+      events = events.filter(event => event.type === type);
+    }
+
+    // Filter by repository if specified
+    if (repository) {
+      events = events.filter(event => 
+        event.repository && event.repository.includes(repository)
+      );
+    }
+
+    // Limit results
+    events = events.slice(0, parseInt(limit));
+
+    res.json({
+      events,
+      total: queueInfo.items.length,
+      filtered: events.length,
+      processing: queueInfo.processing.length,
+      filters: { type, repository, limit }
+    });
+  } catch (error) {
+    console.error('Error getting webhook events:', error);
+    res.status(500).json({ error: 'Failed to get webhook events' });
+  }
+});
+
+// Webhook queue management
+phase2Router.post('/webhooks/queue/pause', (req, res) => {
+  try {
+    const webhookHandler = req.app.locals.webhookHandler;
+    
+    if (!webhookHandler) {
+      return res.status(503).json({ 
+        error: 'Webhook handler not initialized' 
+      });
+    }
+
+    webhookHandler.eventQueue.pause();
+    
+    res.json({
+      status: 'paused',
+      message: 'Webhook event processing paused'
+    });
+  } catch (error) {
+    console.error('Error pausing webhook queue:', error);
+    res.status(500).json({ error: 'Failed to pause webhook queue' });
+  }
+});
+
+phase2Router.post('/webhooks/queue/resume', (req, res) => {
+  try {
+    const webhookHandler = req.app.locals.webhookHandler;
+    
+    if (!webhookHandler) {
+      return res.status(503).json({ 
+        error: 'Webhook handler not initialized' 
+      });
+    }
+
+    webhookHandler.eventQueue.resume();
+    
+    res.json({
+      status: 'resumed',
+      message: 'Webhook event processing resumed'
+    });
+  } catch (error) {
+    console.error('Error resuming webhook queue:', error);
+    res.status(500).json({ error: 'Failed to resume webhook queue' });
+  }
+});
+
+// Clear processed events cache
+phase2Router.post('/webhooks/queue/cleanup', (req, res) => {
+  try {
+    const webhookHandler = req.app.locals.webhookHandler;
+    
+    if (!webhookHandler) {
+      return res.status(503).json({ 
+        error: 'Webhook handler not initialized' 
+      });
+    }
+
+    const beforeSize = webhookHandler.eventQueue.processed.size;
+    webhookHandler.eventQueue.cleanupProcessedEvents();
+    const afterSize = webhookHandler.eventQueue.processed.size;
+    
+    res.json({
+      status: 'cleaned',
+      message: 'Processed events cache cleaned',
+      before: beforeSize,
+      after: afterSize,
+      cleaned: beforeSize - afterSize
+    });
+  } catch (error) {
+    console.error('Error cleaning webhook queue:', error);
+    res.status(500).json({ error: 'Failed to clean webhook queue' });
+  }
+});
+
+// Test webhook endpoint (for development/testing)
+phase2Router.post('/webhooks/test', (req, res) => {
+  try {
+    const { eventType = 'ping', repository = 'test/repo' } = req.body;
+    const webhookHandler = req.app.locals.webhookHandler;
+    
+    if (!webhookHandler) {
+      return res.status(503).json({ 
+        error: 'Webhook handler not initialized' 
+      });
+    }
+
+    // Create a test event
+    const testEvent = {
+      type: eventType,
+      action: 'test',
+      repository: {
+        name: repository.split('/')[1] || 'repo',
+        fullName: repository
+      },
+      timestamp: new Date().toISOString(),
+      _test: true
+    };
+
+    // Queue the test event
+    const queued = webhookHandler.eventQueue.enqueue(testEvent);
+    
+    res.json({
+      status: 'test_event_created',
+      queued,
+      event: testEvent,
+      message: `Test ${eventType} event ${queued ? 'queued' : 'rejected'} for ${repository}`
+    });
+  } catch (error) {
+    console.error('Error creating test webhook:', error);
+    res.status(500).json({ error: 'Failed to create test webhook' });
+  }
 });
 
 module.exports = phase2Router;

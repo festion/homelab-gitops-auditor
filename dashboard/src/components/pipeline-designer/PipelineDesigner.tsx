@@ -469,5 +469,5 @@ function getDefaultNodeData(nodeType: string): any {
     parallel: { label: 'Parallel', branches: ['branch1', 'branch2'] },
   };
 
-  return defaults[nodeType as keyof typeof defaults] || { label: 'Node' };
+  return (defaults as any)[nodeType] || { label: 'Node' };
 }

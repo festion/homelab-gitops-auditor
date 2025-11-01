@@ -1,0 +1,280 @@
+name: CI Pipeline with Comprehensive Testing
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: "{{NODE_VERSION|18}}"
+  PYTHON_VERSION: "{{PYTHON_VERSION|3.11}}"
+  TEST_TIMEOUT: "{{TEST_TIMEOUT|10m}}"
+
+jobs:
+  lint:
+    name: Code Quality & Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup environment
+      uses: ./.github/actions/setup-env
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Run ESLint (JavaScript/TypeScript)
+      if: hashFiles('package.json') != ''
+      run: npm run lint
+    
+    - name: Run Prettier check
+      if: hashFiles('package.json') != ''
+      run: npm run format:check
+    
+    - name: Run Python linting
+      if: hashFiles('requirements.txt', 'pyproject.toml') != ''
+      run: |
+        pip install flake8 black isort mypy
+        flake8 .
+        black --check .
+        isort --check-only .
+        mypy . || echo "MyPy check completed with warnings"
+
+  security:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+      
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      
+    - name: Run dependency audit
+      run: |
+        if [ -f "package.json" ]; then
+          npm audit --audit-level=moderate
+        fi
+        if [ -f "requirements.txt" ]; then
+          pip install safety
+          safety check -r requirements.txt
+        fi
+    
+    - name: SAST with Semgrep
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: >-
+          p/security-audit
+          p/secrets
+          p/ci
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript', 'python' ]
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: [lint]
+    
+    strategy:
+      matrix:
+        node-version: [16, 18, 20]
+        python-version: [3.9, 3.10, 3.11]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js ${{ matrix.node-version }}
+      if: hashFiles('package.json') != ''
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Setup Python ${{ matrix.python-version }}
+      if: hashFiles('requirements.txt', 'pyproject.toml') != ''
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+    
+    - name: Install Node.js dependencies
+      if: hashFiles('package.json') != ''
+      run: npm ci
+    
+    - name: Install Python dependencies
+      if: hashFiles('requirements.txt') != ''
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Run JavaScript tests
+      if: hashFiles('package.json') != ''
+      timeout-minutes: ${{ fromJSON(env.TEST_TIMEOUT) }}
+      run: npm test -- --coverage --watchAll=false
+    
+    - name: Run Python tests
+      if: hashFiles('requirements.txt', 'pyproject.toml') != ''
+      timeout-minutes: ${{ fromJSON(env.TEST_TIMEOUT) }}
+      run: |
+        pytest --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.node-version || matrix.python-version }}
+        path: |
+          test-results.xml
+          coverage/
+          htmlcov/
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: success()
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup environment
+      uses: ./.github/actions/setup-env
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Run integration tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379
+      run: |
+        if [ -f "package.json" ] && npm run | grep -q "test:integration"; then
+          npm run test:integration
+        fi
+        if [ -f "tests/integration" ]; then
+          pytest tests/integration/ -v
+        fi
+
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    needs: [security, integration-tests]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup environment
+      uses: ./.github/actions/setup-env
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Build JavaScript/TypeScript project
+      if: hashFiles('package.json') != ''
+      run: |
+        npm run build
+        npm run test:build || echo "No build tests configured"
+    
+    - name: Build Python package
+      if: hashFiles('setup.py', 'pyproject.toml') != ''
+      run: |
+        pip install build
+        python -m build
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts-${{ github.sha }}
+        path: |
+          dist/
+          build/
+          *.tar.gz
+          *.whl
+        retention-days: 7
+
+  performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup environment
+      uses: ./.github/actions/setup-env
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Run Lighthouse CI
+      if: hashFiles('package.json') != ''
+      uses: treosh/lighthouse-ci-action@v10
+      with:
+        configPath: './lighthouserc.json'
+        uploadArtifacts: true
+    
+    - name: Run Python performance tests
+      if: hashFiles('tests/performance') != ''
+      run: |
+        pip install pytest-benchmark
+        pytest tests/performance/ --benchmark-json=benchmark.json
+    
+    - name: Upload performance results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-results
+        path: |
+          lhci_reports/
+          benchmark.json

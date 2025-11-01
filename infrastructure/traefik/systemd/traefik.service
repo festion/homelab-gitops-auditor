@@ -1,0 +1,39 @@
+[Unit]
+Description=Traefik Reverse Proxy v3
+Documentation=https://doc.traefik.io/traefik/
+After=network-online.target
+Wants=network-online.target systemd-networkd-wait-online.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Traefik binary and configuration
+ExecStart=/usr/local/bin/traefik --configFile=/etc/traefik/traefik.yml
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+StartLimitInterval=0
+
+# Security and resource limits
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/etc/traefik /var/log/traefik /var/lib/traefik
+
+# Environment variables (Cloudflare API credentials)
+EnvironmentFile=/etc/traefik/environment
+
+# Logging
+StandardOutput=append:/var/log/traefik/traefik.log
+StandardError=append:/var/log/traefik/traefik-error.log
+
+# Process limits
+LimitNOFILE=1048576
+LimitNPROC=512
+
+[Install]
+WantedBy=multi-user.target

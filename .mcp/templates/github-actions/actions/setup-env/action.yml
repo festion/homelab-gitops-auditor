@@ -1,0 +1,187 @@
+name: 'Setup Development Environment'
+description: 'Sets up Node.js and Python development environment with caching'
+
+inputs:
+  node-version:
+    description: 'Node.js version to use'
+    default: '18'
+  python-version:
+    description: 'Python version to use' 
+    default: '3.11'
+  cache-dependency-path:
+    description: 'Path to dependency files for caching'
+    default: ''
+  install-dependencies:
+    description: 'Whether to install dependencies automatically'
+    default: 'true'
+  setup-docker:
+    description: 'Whether to setup Docker environment'
+    default: 'false'
+
+outputs:
+  node-cache-hit:
+    description: 'Whether Node.js cache was hit'
+    value: ${{ steps.node-cache.outputs.cache-hit }}
+  python-cache-hit:
+    description: 'Whether Python cache was hit'
+    value: ${{ steps.python-cache.outputs.cache-hit }}
+  node-version:
+    description: 'Actual Node.js version installed'
+    value: ${{ steps.setup-node.outputs.node-version }}
+  python-version:
+    description: 'Actual Python version installed'
+    value: ${{ steps.setup-python.outputs.python-version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      id: setup-node
+      if: hashFiles('package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml') != ''
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ steps.detect-package-manager.outputs.manager }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path || steps.detect-package-manager.outputs.lock-file }}
+    
+    - name: Detect package manager
+      id: detect-package-manager
+      if: hashFiles('package.json') != ''
+      shell: bash
+      run: |
+        if [ -f "pnpm-lock.yaml" ]; then
+          echo "manager=pnpm" >> $GITHUB_OUTPUT
+          echo "lock-file=pnpm-lock.yaml" >> $GITHUB_OUTPUT
+          echo "install-cmd=pnpm install --frozen-lockfile" >> $GITHUB_OUTPUT
+        elif [ -f "yarn.lock" ]; then
+          echo "manager=yarn" >> $GITHUB_OUTPUT
+          echo "lock-file=yarn.lock" >> $GITHUB_OUTPUT
+          echo "install-cmd=yarn install --frozen-lockfile" >> $GITHUB_OUTPUT
+        else
+          echo "manager=npm" >> $GITHUB_OUTPUT
+          echo "lock-file=package-lock.json" >> $GITHUB_OUTPUT
+          echo "install-cmd=npm ci" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Setup Python
+      id: setup-python
+      if: hashFiles('requirements.txt', 'pyproject.toml', 'setup.py', 'Pipfile') != ''
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: ${{ steps.detect-python-manager.outputs.manager }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path || steps.detect-python-manager.outputs.requirements-file }}
+    
+    - name: Detect Python package manager
+      id: detect-python-manager
+      if: hashFiles('requirements.txt', 'pyproject.toml', 'setup.py', 'Pipfile') != ''
+      shell: bash
+      run: |
+        if [ -f "Pipfile" ]; then
+          echo "manager=pipenv" >> $GITHUB_OUTPUT
+          echo "requirements-file=Pipfile" >> $GITHUB_OUTPUT
+          echo "install-cmd=pipenv install --dev" >> $GITHUB_OUTPUT
+        elif [ -f "pyproject.toml" ]; then
+          # Check if Poetry is being used
+          if grep -q "tool.poetry" pyproject.toml; then
+            echo "manager=poetry" >> $GITHUB_OUTPUT
+            echo "requirements-file=pyproject.toml" >> $GITHUB_OUTPUT
+            echo "install-cmd=poetry install" >> $GITHUB_OUTPUT
+          else
+            echo "manager=pip" >> $GITHUB_OUTPUT
+            echo "requirements-file=pyproject.toml" >> $GITHUB_OUTPUT
+            echo "install-cmd=pip install -e ." >> $GITHUB_OUTPUT
+          fi
+        elif [ -f "requirements.txt" ]; then
+          echo "manager=pip" >> $GITHUB_OUTPUT
+          echo "requirements-file=requirements.txt" >> $GITHUB_OUTPUT
+          echo "install-cmd=pip install -r requirements.txt" >> $GITHUB_OUTPUT
+        else
+          echo "manager=pip" >> $GITHUB_OUTPUT
+          echo "requirements-file=setup.py" >> $GITHUB_OUTPUT
+          echo "install-cmd=pip install -e ." >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Install Node.js dependencies
+      if: hashFiles('package.json') != '' && inputs.install-dependencies == 'true'
+      shell: bash
+      run: ${{ steps.detect-package-manager.outputs.install-cmd }}
+    
+    - name: Setup Poetry
+      if: steps.detect-python-manager.outputs.manager == 'poetry'
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+    
+    - name: Install Python dependencies
+      if: hashFiles('requirements.txt', 'pyproject.toml', 'setup.py', 'Pipfile') != '' && inputs.install-dependencies == 'true'
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        ${{ steps.detect-python-manager.outputs.install-cmd }}
+    
+    - name: Setup Docker
+      if: inputs.setup-docker == 'true'
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Cache pre-commit hooks
+      if: hashFiles('.pre-commit-config.yaml') != ''
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pre-commit
+        key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+    
+    - name: Install pre-commit
+      if: hashFiles('.pre-commit-config.yaml') != ''
+      shell: bash
+      run: |
+        if command -v pip &> /dev/null; then
+          pip install pre-commit
+          pre-commit install --install-hooks
+        elif command -v npm &> /dev/null; then
+          npm install -g pre-commit
+        fi
+    
+    - name: Display environment info
+      shell: bash
+      run: |
+        echo "🔧 Environment Setup Complete"
+        echo "================================"
+        
+        if command -v node &> /dev/null; then
+          echo "📦 Node.js: $(node --version)"
+          echo "📦 npm: $(npm --version)"
+          
+          if command -v yarn &> /dev/null; then
+            echo "📦 Yarn: $(yarn --version)"
+          fi
+          
+          if command -v pnpm &> /dev/null; then
+            echo "📦 pnpm: $(pnpm --version)"
+          fi
+        fi
+        
+        if command -v python &> /dev/null; then
+          echo "🐍 Python: $(python --version)"
+          echo "🐍 pip: $(pip --version)"
+          
+          if command -v poetry &> /dev/null; then
+            echo "🐍 Poetry: $(poetry --version)"
+          fi
+          
+          if command -v pipenv &> /dev/null; then
+            echo "🐍 Pipenv: $(pipenv --version)"
+          fi
+        fi
+        
+        if command -v docker &> /dev/null; then
+          echo "🐳 Docker: $(docker --version)"
+        fi
+        
+        if command -v pre-commit &> /dev/null; then
+          echo "🔧 pre-commit: $(pre-commit --version)"
+        fi
+        
+        echo "================================"

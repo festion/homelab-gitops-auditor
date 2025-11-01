@@ -1,0 +1,228 @@
+/* Pipeline Component Styles */
+
+/* Running pipeline pulse animation */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+.pipeline-running {
+  animation: pulse 2s infinite;
+}
+
+/* Card enter animations */
+.pipeline-card-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.pipeline-card-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: all 300ms ease-in-out;
+}
+
+.pipeline-card-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.pipeline-card-exit-active {
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 300ms ease-in-out;
+}
+
+/* Status indicator animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.pipeline-status-running {
+  animation: spin 2s linear infinite;
+}
+
+/* Progress bar animations */
+@keyframes progress-fill {
+  0% { width: 0%; }
+  100% { width: var(--progress-width); }
+}
+
+.pipeline-progress {
+  animation: progress-fill 1s ease-in-out;
+}
+
+/* Modal backdrop animation */
+@keyframes modal-backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-content-enter {
+  from { 
+    opacity: 0; 
+    transform: scale(0.95) translateY(-20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1) translateY(0); 
+  }
+}
+
+.pipeline-modal-backdrop {
+  animation: modal-backdrop-enter 200ms ease-out;
+}
+
+.pipeline-modal-content {
+  animation: modal-content-enter 200ms ease-out;
+}
+
+/* Timeline animations */
+.pipeline-timeline-item {
+  opacity: 0;
+  transform: translateX(-20px);
+  animation: timeline-item-enter 400ms ease-out forwards;
+}
+
+@keyframes timeline-item-enter {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Stagger timeline items */
+.pipeline-timeline-item:nth-child(1) { animation-delay: 0ms; }
+.pipeline-timeline-item:nth-child(2) { animation-delay: 100ms; }
+.pipeline-timeline-item:nth-child(3) { animation-delay: 200ms; }
+.pipeline-timeline-item:nth-child(4) { animation-delay: 300ms; }
+.pipeline-timeline-item:nth-child(5) { animation-delay: 400ms; }
+
+/* Status-specific styles */
+.pipeline-status-success {
+  background-color: #dcfce7;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.pipeline-status-failure {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.pipeline-status-running {
+  background-color: #dbeafe;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.pipeline-status-pending {
+  background-color: #fefce8;
+  border-color: #fde047;
+  color: #a16207;
+}
+
+/* Step status indicators */
+.pipeline-step-success {
+  background-color: #22c55e;
+  color: white;
+}
+
+.pipeline-step-failure {
+  background-color: #ef4444;
+  color: white;
+}
+
+.pipeline-step-running {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.pipeline-step-pending {
+  background-color: #eab308;
+  color: white;
+}
+
+.pipeline-step-skipped {
+  background-color: #6b7280;
+  color: white;
+}
+
+/* Hover effects */
+.pipeline-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  transition: all 200ms ease-in-out;
+}
+
+.pipeline-timeline-dot:hover {
+  transform: scale(1.1);
+  transition: transform 200ms ease-in-out;
+}
+
+/* Loading states */
+.pipeline-loading {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading-shimmer 1.5s infinite;
+}
+
+@keyframes loading-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .pipeline-card {
+    margin-bottom: 1rem;
+  }
+  
+  .pipeline-timeline {
+    padding-left: 0;
+  }
+  
+  .pipeline-timeline-item {
+    padding-left: 2rem;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .pipeline-card {
+    background-color: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+  
+  .pipeline-modal-content {
+    background-color: #1f2937;
+    color: #f9fafb;
+  }
+  
+  .pipeline-loading {
+    background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+  }
+}
+
+/* Focus states for accessibility */
+.pipeline-card:focus-within {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.pipeline-button:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .pipeline-status-success { border: 2px solid #166534; }
+  .pipeline-status-failure { border: 2px solid #991b1b; }
+  .pipeline-status-running { border: 2px solid #1e40af; }
+  .pipeline-status-pending { border: 2px solid #a16207; }
+}

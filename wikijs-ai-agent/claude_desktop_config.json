@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "wikijs-mcp-server": {
+      "command": "python",
+      "args": [
+        "/home/dev/workspace/mcp-servers/mcp-servers/wikijs-mcp-server/run_server.py",
+        "/home/dev/workspace/mcp-servers/mcp-servers/wikijs-mcp-server/config/wikijs_mcp_config.json"
+      ],
+      "env": {
+        "PYTHONPATH": "/home/dev/workspace/mcp-servers/mcp-servers/wikijs-mcp-server/src"
+      }
+    }
+  }
+}

@@ -1,0 +1,264 @@
+# Prometheus Alerting Rules for Traefik
+#
+# Install this file to your Prometheus rules directory
+# (typically /etc/prometheus/rules/ or /etc/prometheus/rules.d/)
+#
+# Reference in prometheus.yml:
+#   rule_files:
+#     - '/etc/prometheus/rules/traefik-alerts.yml'
+
+groups:
+  # ========================================
+  # CRITICAL ALERTS
+  # ========================================
+  - name: traefik_critical
+    interval: 30s
+    rules:
+      - alert: TraefikDown
+        expr: up{job="traefik"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: reverse-proxy
+        annotations:
+          summary: "Traefik reverse proxy is down"
+          description: |
+            Traefik has been unreachable for more than 1 minute.
+            All web services are likely inaccessible.
+            Instance: {{ $labels.instance }}
+          runbook_url: "https://docs/runbooks/traefik-down"
+
+      - alert: TraefikBackendDown
+        expr: traefik_service_server_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "Backend service {{ $labels.service }} is down"
+          description: |
+            Backend for {{ $labels.service }} ({{ $labels.url }}) has been unreachable for 2+ minutes.
+            Service: {{ $labels.service }}
+            Backend URL: {{ $labels.url }}
+          runbook_url: "https://docs/runbooks/backend-down"
+
+      - alert: TraefikHighErrorRate
+        expr: |
+          (
+            sum(rate(traefik_service_requests_total{code=~"5.."}[5m])) by (service)
+            /
+            sum(rate(traefik_service_requests_total[5m])) by (service)
+          ) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          component: application
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.service }}"
+          description: |
+            Service {{ $labels.service }} is returning {{ $value | printf "%.2f" }}% 5xx errors.
+            This indicates a serious problem with the backend application.
+            Error rate threshold: 5%
+            Current error rate: {{ $value | printf "%.2f" }}%
+          runbook_url: "https://docs/runbooks/high-error-rate"
+
+      - alert: TraefikCriticalHomeAssistantDown
+        expr: traefik_service_server_up{service=~"homeassistant.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: smart-home
+          service: home-assistant
+        annotations:
+          summary: "CRITICAL: Home Assistant is down"
+          description: |
+            Home Assistant backend is unreachable.
+            Smart home automations are not functioning.
+            Immediate action required.
+          runbook_url: "https://docs/runbooks/home-assistant-down"
+
+  # ========================================
+  # WARNING ALERTS
+  # ========================================
+  - name: traefik_warnings
+    interval: 1m
+    rules:
+      - alert: TraefikHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(traefik_service_request_duration_seconds_bucket[5m])) by (le, service)
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "High p95 latency on {{ $labels.service }}"
+          description: |
+            Service {{ $labels.service }} p95 latency is {{ $value | printf "%.2f" }}s.
+            Threshold: 1 second
+            Current p95: {{ $value | printf "%.2f" }}s
+            This may indicate performance issues with the backend.
+          runbook_url: "https://docs/runbooks/high-latency"
+
+      - alert: TraefikModerateErrorRate
+        expr: |
+          (
+            sum(rate(traefik_service_requests_total{code=~"5.."}[5m])) by (service)
+            /
+            sum(rate(traefik_service_requests_total[5m])) by (service)
+          ) * 100 > 1
+        for: 10m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "Elevated error rate on {{ $labels.service }}"
+          description: |
+            Service {{ $labels.service }} error rate: {{ $value | printf "%.2f" }}%
+            Threshold: 1%
+            Monitor for potential issues.
+
+      - alert: TraefikCertificateExpiringSoon
+        expr: (traefik_tls_certs_not_after - time()) / 86400 < 14
+        for: 1h
+        labels:
+          severity: warning
+          component: tls
+        annotations:
+          summary: "TLS certificate expiring soon: {{ $labels.cn }}"
+          description: |
+            Certificate for {{ $labels.cn }} expires in {{ $value | printf "%.0f" }} days.
+            Threshold: 14 days
+            Days remaining: {{ $value | printf "%.0f" }}
+            SANs: {{ $labels.sans }}
+            Auto-renewal should handle this, but verify ACME is functioning.
+          runbook_url: "https://docs/runbooks/cert-expiry"
+
+      - alert: TraefikConfigurationReloadFailed
+        expr: traefik_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: configuration
+        annotations:
+          summary: "Traefik configuration reload failed"
+          description: |
+            Last configuration reload failed.
+            Traefik is running with the previous configuration.
+            Check Traefik logs for errors.
+          runbook_url: "https://docs/runbooks/config-reload-failed"
+
+      - alert: TraefikHighConnectionCount
+        expr: traefik_entrypoint_open_connections{entrypoint="websecure"} > 500
+        for: 15m
+        labels:
+          severity: warning
+          component: capacity
+        annotations:
+          summary: "High connection count on {{ $labels.entrypoint }}"
+          description: |
+            {{ $labels.entrypoint }} has {{ $value }} open connections.
+            Threshold: 500 connections
+            Monitor for potential resource exhaustion or attack.
+
+  # ========================================
+  # INFO ALERTS
+  # ========================================
+  - name: traefik_info
+    interval: 5m
+    rules:
+      - alert: TraefikCertificateRenewed
+        expr: changes(traefik_tls_certs_not_after[1h]) > 0
+        labels:
+          severity: info
+          component: tls
+        annotations:
+          summary: "TLS certificate renewed: {{ $labels.cn }}"
+          description: |
+            Certificate {{ $labels.cn }} was successfully renewed.
+            New expiration: {{ with query "traefik_tls_certs_not_after" }}{{ . | first | value | humanizeDuration }}{{ end }}
+
+      - alert: TraefikBackendRecovered
+        expr: |
+          traefik_service_server_up == 1
+          and
+          traefik_service_server_up offset 5m == 0
+        labels:
+          severity: info
+          component: backend
+        annotations:
+          summary: "Backend {{ $labels.service }} recovered"
+          description: |
+            Service {{ $labels.service }} backend is now healthy.
+            URL: {{ $labels.url }}
+
+  # ========================================
+  # PERFORMANCE MONITORING
+  # ========================================
+  - name: traefik_performance
+    interval: 1m
+    rules:
+      # Record rules for dashboard queries
+      - record: traefik:service:request_rate
+        expr: sum(rate(traefik_service_requests_total[5m])) by (service)
+
+      - record: traefik:service:error_rate
+        expr: |
+          sum(rate(traefik_service_requests_total{code=~"5.."}[5m])) by (service)
+          /
+          sum(rate(traefik_service_requests_total[5m])) by (service)
+
+      - record: traefik:service:p50_latency
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(traefik_service_request_duration_seconds_bucket[5m])) by (le, service)
+          )
+
+      - record: traefik:service:p95_latency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(traefik_service_request_duration_seconds_bucket[5m])) by (le, service)
+          )
+
+      - record: traefik:service:p99_latency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(traefik_service_request_duration_seconds_bucket[5m])) by (le, service)
+          )
+
+      # Overall metrics
+      - record: traefik:total:request_rate
+        expr: sum(rate(traefik_service_requests_total[5m]))
+
+      - record: traefik:total:error_rate
+        expr: |
+          sum(rate(traefik_service_requests_total{code=~"5.."}[5m]))
+          /
+          sum(rate(traefik_service_requests_total[5m]))
+
+  # ========================================
+  # SERVICE-SPECIFIC ALERTS
+  # ========================================
+  - name: traefik_smart_home
+    interval: 1m
+    rules:
+      - alert: SmartHomeServiceDegraded
+        expr: |
+          traefik_service_server_up{service=~"homeassistant|z2m|zwave-js-ui"} == 0
+          or
+          (
+            sum(rate(traefik_service_requests_total{service=~"homeassistant|z2m|zwave-js-ui",code=~"5.."}[5m])) by (service)
+            /
+            sum(rate(traefik_service_requests_total{service=~"homeassistant|z2m|zwave-js-ui"}[5m])) by (service)
+          ) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          component: smart-home
+        annotations:
+          summary: "Smart home service {{ $labels.service }} degraded"
+          description: |
+            Critical smart home service is unhealthy.
+            Service: {{ $labels.service }}
+            Automations may be affected.
