@@ -44,3 +44,8 @@ metrics:
     addEntryPointsLabels: true
     addRoutersLabels: true
     addServicesLabels: true
+experimental:
+  plugins:
+    traefik-warp:
+      moduleName: github.com/l4rm4nd/traefik-warp
+      version: v1.0.0

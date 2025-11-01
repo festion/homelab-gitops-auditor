@@ -24,6 +24,11 @@ load_config() {
     GITHUB_USER="${GITHUB_USER:-festion}"
     GITHUB_API_URL="https://api.github.com/users/${GITHUB_USER}/repos?per_page=100"
     
+    # Proxmox defaults
+    PROXMOX_NODE="${PROXMOX_NODE:-proxmox}"
+    PROXMOX_URL="${PROXMOX_URL:-https://192.168.1.137:8006}"
+    PROXMOX_TOKEN="${PROXMOX_TOKEN:-}"
+    
     DASHBOARD_TITLE="${DASHBOARD_TITLE:-GitOps Audit Dashboard}"
     AUTO_REFRESH_INTERVAL="${AUTO_REFRESH_INTERVAL:-30000}"
     
@@ -37,32 +42,14 @@ load_config() {
     
     # Load main config file if it exists
     if [ -f "$config_file" ]; then
-        # Source the config file, ignoring comments and empty lines
-        while IFS= read -r line || [ -n "$line" ]; do
-            # Skip comments and empty lines
-            [[ "$line" =~ ^[[:space:]]*# ]] && continue
-            [[ "$line" =~ ^[[:space:]]*$ ]] && continue
-            
-            # Export the variable
-            if [[ "$line" =~ ^[[:space:]]*([A-Z_][A-Z0-9_]*)=(.*)$ ]]; then
-                export "${BASH_REMATCH[1]}"="${BASH_REMATCH[2]//\"/}"
-            fi
-        done < "$config_file"
+        # Source the config file
+        source "$config_file"
     fi
     
     # Load user-specific overrides if they exist
     if [ -f "$user_config_file" ]; then
         echo "📋 Loading user configuration overrides from: $user_config_file"
-        while IFS= read -r line || [ -n "$line" ]; do
-            # Skip comments and empty lines
-            [[ "$line" =~ ^[[:space:]]*# ]] && continue
-            [[ "$line" =~ ^[[:space:]]*$ ]] && continue
-            
-            # Export the variable
-            if [[ "$line" =~ ^[[:space:]]*([A-Z_][A-Z0-9_]*)=(.*)$ ]]; then
-                export "${BASH_REMATCH[1]}"="${BASH_REMATCH[2]//\"/}"
-            fi
-        done < "$user_config_file"
+        source "$user_config_file"
     fi
 }
 
@@ -257,5 +244,5 @@ EOF
     validate_config
 }
 
-# Export functions for use in other scripts
-export -f load_config show_config validate_config
+# Functions are available when sourced - no need to export
+# load_config, show_config, and validate_config are ready to use

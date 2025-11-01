@@ -196,9 +196,21 @@ http:
         certResolver: cloudflare
         domains:
         - main: '*.internal.lakehouse.wtf'
-    traefik-router:
-      rule: Host(`traefik.internal.lakehouse.wtf`)
+    traefik-dashboard-router:
+      rule: Host(`traefik.internal.lakehouse.wtf`) && !PathPrefix(`/metrics`)
       service: api@internal
+      entryPoints:
+      - websecure
+      middlewares:
+      - internal-whitelist
+      - secure-headers
+      tls:
+        certResolver: cloudflare
+        domains:
+        - main: '*.internal.lakehouse.wtf'
+    traefik-metrics-router:
+      rule: Host(`traefik.internal.lakehouse.wtf`) && PathPrefix(`/metrics`)
+      service: prometheus@internal
       entryPoints:
       - websecure
       middlewares:

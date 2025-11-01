@@ -34,3 +34,9 @@ http:
           Cache-Control: "no-cache, no-store, must-revalidate"
           Pragma: "no-cache"
           Expires: "0"
+    cloudflare-real-ip:
+      plugin:
+        traefik-real-ip:
+          excludednets:
+            - 192.168.1.0/24
+          cloudflare: true
