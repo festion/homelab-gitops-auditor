@@ -159,3 +159,4 @@ personal-*
 local-*
 dev-*
 test-*
+venv/
