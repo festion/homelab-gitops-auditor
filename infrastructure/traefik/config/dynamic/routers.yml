@@ -11,6 +11,28 @@ http:
         certResolver: cloudflare
         domains:
         - main: '*.internal.lakehouse.wtf'
+    adguard2-router:
+      rule: Host(`adguard2.internal.lakehouse.wtf`)
+      service: adguard2-service
+      entryPoints:
+      - websecure
+      middlewares:
+      - secure-headers
+      tls:
+        certResolver: cloudflare
+        domains:
+        - main: '*.internal.lakehouse.wtf'
+    uptime-router:
+      rule: Host(`uptime.internal.lakehouse.wtf`)
+      service: uptime-service
+      entryPoints:
+      - websecure
+      middlewares:
+      - secure-headers
+      tls:
+        certResolver: cloudflare
+        domains:
+        - main: '*.internal.lakehouse.wtf'
     birdnet-router:
       rule: Host(`birdnet.internal.lakehouse.wtf`)
       service: birdnet-service
@@ -180,6 +202,18 @@ http:
       middlewares:
       - secure-headers
       - netbox-headers
+      tls:
+        certResolver: cloudflare
+        domains:
+        - main: '*.internal.lakehouse.wtf'
+    truenas-router:
+      rule: Host(`truenas.internal.lakehouse.wtf`)
+      service: truenas-service
+      entryPoints:
+      - websecure
+      middlewares:
+      - internal-whitelist
+      - secure-headers
       tls:
         certResolver: cloudflare
         domains:
